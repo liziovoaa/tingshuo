@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>上海中考英语听说模拟器</title>
+<style>
+:root{
+  --bg:#f4f6fa; --panel:#fff; --ink:#1b2430; --ink2:#5a6472; --ink3:#8d97a5;
+  --line:#e3e8ef; --brand:#1f5fa8; --brand2:#eaf1fa; --rec:#d64545; --ok:#1f8a5b;
+  --warn:#b8791a; --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.65 "Microsoft YaHei","PingFang SC","Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 20px 60px}
+.screen{display:none}
+.screen.on{display:block}
+
+/* 首页 */
+.hero{padding:26px 0 18px}
+.hero h1{margin:0 0 6px;font-size:26px;letter-spacing:.3px}
+.hero .sub{color:var(--ink2);font-size:14px}
+.hero .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--brand2);color:var(--brand);border:1px solid #d5e3f5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px;margin-top:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 16px 14px;text-align:left;transition:.16s;position:relative;overflow:hidden}
+.card:hover{border-color:#bcd2ec;transform:translateY(-2px);box-shadow:0 6px 18px rgba(31,95,168,.08)}
+.card .no{font-size:12px;color:var(--ink3)}
+.card .t{font-size:15px;font-weight:600;margin:4px 0 8px}
+.card .meta{font-size:12px;color:var(--ink2);display:flex;gap:10px;flex-wrap:wrap}
+.card .best{position:absolute;right:12px;top:12px;font-size:12px;color:var(--ok);background:#eaf6f0;padding:2px 8px;border-radius:999px}
+.tips{margin-top:22px;background:#fbfcfe;border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px;font-size:13px;color:var(--ink2)}
+.tips b{color:var(--ink)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{padding:9px 18px;border-radius:10px;background:var(--brand);color:#fff;font-size:14px;transition:.15s}
+.btn:hover{background:#1a5292}
+.btn.ghost{background:#fff;color:var(--brand);border:1px solid #cfdeef}
+.btn.ghost:hover{background:#f5f9fe}
+.btn.mini{padding:6px 12px;font-size:13px;border-radius:8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* 考试界面 */
+.exam-top{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0 16px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.exam-top .left{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink2)}
+.pill{padding:3px 10px;border-radius:999px;background:#eef3f9;color:var(--brand);font-size:12px}
+.pill.live{background:#fdecec;color:var(--rec)}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 28px;min-height:330px;position:relative}
+.stage h2{margin:0 0 4px;font-size:15px;font-weight:600;color:var(--brand)}
+.stage .hint{font-size:13px;color:var(--ink3);margin-bottom:18px}
+.qbody{font-size:19px;line-height:1.85}
+.qbody .line{padding:7px 0;border-bottom:1px dashed #eef1f6}
+.qbody .line:last-child{border-bottom:0}
+.qbody .num{color:var(--ink3);font-size:14px;margin-right:8px}
+.qbody .tone{font-size:12px;color:var(--brand);background:var(--brand2);padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:2px}
+.qbody .blank{display:inline-block;min-width:70%;border-bottom:1px solid #ccd6e2;height:22px}
+.big-sentence{font-size:22px;line-height:1.9;letter-spacing:.2px}
+.pts{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.pts span{background:#f3f6fa;border:1px solid #e5ebf3;padding:5px 12px;border-radius:8px;font-size:14px}
+.pics{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+.pics img{max-height:260px;max-width:100%;border:1px solid var(--line);border-radius:10px;background:#fff}
+
+.meter{margin-top:22px;display:flex;align-items:center;gap:16px}
+.ring{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;position:relative;
+  background:conic-gradient(var(--brand) calc(var(--p,0)*1%), #e8eef6 0)}
+.ring::after{content:"";position:absolute;inset:5px;background:#fff;border-radius:50%;z-index:0}
+.ring b{position:relative;z-index:1;font-size:19px;font-weight:600;letter-spacing:-.5px}
+.ring.rec{background:conic-gradient(var(--rec) calc(var(--p,0)*1%), #f7e8e8 0)}
+.meter .st{font-size:14px;color:var(--ink2)}
+.meter .st b{color:var(--ink)}
+.bar{height:6px;background:#eef2f7;border-radius:3px;overflow:hidden;flex:1;max-width:340px}
+.bar i{display:block;height:100%;background:var(--brand);width:0}
+.mic-dot{width:9px;height:9px;border-radius:50%;background:var(--rec);display:inline-block;animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.foot{margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;color:var(--ink3)}
+
+/* 报告 */
+.score-hero{background:linear-gradient(180deg,#fff,#f8fbff);border:1px solid var(--line);border-radius:18px;padding:24px 26px;display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.score-hero .num{font-size:46px;font-weight:600;line-height:1;color:var(--brand)}
+.score-hero .num small{font-size:16px;color:var(--ink3);font-weight:400}
+.score-hero .desc{font-size:13px;color:var(--ink2);flex:1;min-width:260px}
+.dims{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-top:16px}
+.dim{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.dim .k{font-size:12px;color:var(--ink3)}
+.dim .v{font-size:20px;font-weight:600;margin:2px 0 8px}
+.dim .bar{max-width:none}
+.part{background:#fff;border:1px solid var(--line);border-radius:14px;margin-top:14px;overflow:hidden}
+.part>summary{list-style:none;cursor:pointer;padding:14px 18px;display:flex;align-items:center;gap:12px;font-size:14px}
+.part>summary::-webkit-details-marker{display:none}
+.part>summary .t{font-weight:600;flex:1}
+.part>summary .sc{color:var(--brand);font-weight:600}
+.part .body{padding:0 18px 18px;border-top:1px solid var(--line)}
+.issue{display:flex;gap:8px;font-size:13px;color:var(--ink2);padding:5px 0}
+.issue i{color:var(--warn);font-style:normal}
+.issue.good i{color:var(--ok)}
+.ans{background:#f7faf8;border:1px solid #e2efe8;border-radius:10px;padding:12px 14px;font-size:14px;margin-top:10px;line-height:1.8}
+.ans .k{font-size:12px;color:var(--ok);display:block;margin-bottom:4px}
+.ans .en{font-family:Georgia,"Times New Roman",serif;font-size:15px}
+.qa{padding:10px 0;border-bottom:1px dashed #eef1f6}
+.qa:last-child{border-bottom:0}
+.qa .q{font-size:14px}
+.qa .a{font-size:14px;color:var(--ok);margin-top:3px;font-family:Georgia,serif}
+canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px;border:1px solid #eef2f7}
+.rec-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0;color:var(--ink2)}
+.chk input{width:15px;height:15px}
+.legend{font-size:12px;color:var(--ink3);margin-top:6px}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.on{opacity:.94}
+.warnbox{background:#fff8ec;border:1px solid #f3e0bd;color:#8a5a12;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px}
+@media (max-width:760px){
+  .wrap{padding:16px 12px 50px}
+  .stage{padding:18px 16px;border-radius:14px;min-height:280px}
+  .qbody{font-size:17px}
+  .big-sentence{font-size:19px}
+  .score-hero{padding:18px}
+  .score-hero .num{font-size:36px}
+  .exam-top{flex-wrap:wrap}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ================= 首页 ================= -->
+<section id="home" class="screen on">
+  <div class="hero">
+    <h1>上海中考英语听说模拟器</h1>
+    <div class="sub">人机对话 · 10 分制 · 全流程还原 · 录音回听纠音</div>
+    <div class="tags">
+      <span class="tag">朗读 2.5</span><span class="tag">交际应答 2.5</span>
+      <span class="tag">复述 2.5</span><span class="tag">表达 2.5</span>
+      <span class="tag">共 12 套</span>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:6px">
+    <button class="btn ghost mini" id="btnVoice">语音：自动选择</button>
+    <span style="font-size:12px;color:var(--ink3)" id="voiceHint">用于播放指令与示范朗读</span>
+  </div>
+
+  <div class="grid" id="setGrid"></div>
+
+  <div class="tips">
+    <b>怎么用：</b>戴耳机 → 点任意一套开始 → 按中考流程自动走完四道题（准备时间→提示音→录音→自动进入下一题）。
+    考完看《诊断报告》：逐项扣分点 + 参考答案 + 自己的录音回听。<br>
+    <b>说明：</b>评分是「诊断分」，参考中考四维度（语音语调 30% / 流利度 25% / 语法词汇 25% / 内容 20%）折算，
+    用于定位问题，<b>不等于官方机评成绩</b>。内容要点需要你自己听录音勾选核对，工具不替你做假。
+  </div>
+</section>
+
+<!-- ================= 考试 ================= -->
+<section id="exam" class="screen">
+  <div class="exam-top">
+    <div class="left">
+      <span class="pill" id="pSet">第 1 套</span>
+      <span id="pPart">准备</span>
+    </div>
+    <div class="left">
+      <span class="pill" id="pState">未开始</span>
+      <button class="btn ghost mini" id="btnQuit">退出</button>
+    </div>
+  </div>
+
+  <div class="stage">
+    <h2 id="sTitle">—</h2>
+    <div class="hint" id="sHint"></div>
+    <div class="qbody" id="sBody"></div>
+  </div>
+
+  <div class="meter">
+    <div class="ring" id="ring"><b id="ringTxt">--</b></div>
+    <div style="flex:1;min-width:160px">
+      <div class="st" id="sStatus">等待开始…</div>
+      <div class="bar" style="margin-top:8px"><i id="sBar"></i></div>
+    </div>
+    <button class="btn mini" id="btnNext" disabled>跳过本题</button>
+  </div>
+  <div class="foot">
+    <span id="sFoot"></span>
+    <span id="sMic"></span>
+  </div>
+</section>
+
+<!-- ================= 报告 ================= -->
+<section id="report" class="screen">
+  <div class="score-hero">
+    <div>
+      <div class="num"><span id="rScore">0.0</span><small> / 10</small></div>
+      <div style="font-size:12px;color:var(--ink3);margin-top:6px">诊断分 · 非官方机评</div>
+    </div>
+    <div class="desc" id="rDesc"></div>
+  </div>
+
+  <div class="dims" id="rDims"></div>
+  <div id="rParts"></div>
+
+  <div class="row" style="margin-top:18px">
+    <button class="btn" id="btnAgain">再考一次</button>
+    <button class="btn ghost" id="btnHome">返回选题</button>
+    <button class="btn ghost" id="btnPrint">打印 / 存 PDF</button>
+  </div>
+</section>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="bank.js"></script>
+<script>
+"use strict";
+/* =========================================================================
+   0. 基础
+   ========================================================================= */
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const AUTO = new URLSearchParams(location.search).has("selftest");   // 自测：把计时压到极短
+const DEMO = new URLSearchParams(location.search).has("demo");       // 演示：用假数据直接出报告
+
+if (AUTO) {
+  window.addEventListener("error", e => {
+    try {
+      fetch("/save", { method: "POST", body: JSON.stringify({ kind: "error", msg: String(e.message), src: e.filename + ":" + e.lineno }) });
+    } catch (_) { }
+  });
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sleep = ms => new Promise(r => setTimeout(r, AUTO ? Math.min(ms, 350) : ms));
+const fmt = s => (s >= 60 ? Math.floor(s / 60) + ":" + String(Math.round(s % 60)).padStart(2, "0") : Math.round(s) + "s");
+
+let toastTimer = null;
+function toast(msg) {
+  const el = $("#toast");
+  el.textContent = msg; el.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("on"), 2200);
+}
+
+const STORE = "sh_zhongkao_tingshuo_v1";
+const store = {
+  get() { try { return JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (e) { return {}; } },
+  setBest(no, score) {
+    try {
+      const d = store.get();
+      d["set" + no] = Math.max(d["set" + no] || 0, score);
+      localStorage.setItem(STORE, JSON.stringify(d));
+    } catch (e) { }
+  }
+};
+
+/* =========================================================================
+   1. 音频：麦克风 / 录音
+   ========================================================================= */
+const REC = { stream: null, mr: null, chunks: [], t0: 0, on: false, ac: null };
+
+async function ensureMic() {
+  if (REC.stream) return REC.stream;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error("当前浏览器不支持录音，请用 Edge / Chrome");
+  }
+  REC.stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+  });
+  return REC.stream;
+}
+
+function pickMime() {
+  const list = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  for (const m of list) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+  return "";
+}
+
+function startRec() {
+  if (!REC.stream) return;
+  REC.chunks = [];
+  const mime = pickMime();
+  try {
+    REC.mr = new MediaRecorder(REC.stream, mime ? { mimeType: mime } : undefined);
+  } catch (e) {
+    REC.mr = new MediaRecorder(REC.stream);
+  }
+  REC.mr.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+  REC.mr.start();
+  REC.t0 = performance.now();
+  REC.on = true;
+}
+
+function stopRec() {
+  return new Promise(res => {
+    if (!REC.mr || REC.mr.state === "inactive") { res(null); return; }
+    REC.mr.onstop = () => {
+      REC.on = false;
+      const type = REC.mr.mimeType || "audio/webm";
+      res({ blob: new Blob(REC.chunks, { type }), ms: performance.now() - REC.t0 });
+    };
+    try { REC.mr.stop(); } catch (e) { REC.on = false; res(null); }
+  });
+}
+
+function stopMic() {
+  if (REC.stream) { REC.stream.getTracks().forEach(t => t.stop()); REC.stream = null; }
+}
+
+/* 提示音：真实考试里“开始/结束录音”都有短促提示音 */
+let AC = null;
+function beep(freq = 880, ms = 130, vol = 0.16) {
+  try {
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === "suspended") AC.resume();
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + ms / 1000);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + ms / 1000);
+  } catch (e) { }
+}
+
+/* =========================================================================
+   2. 分析：包络 / 分段 / 语速 / 音高（YIN）
+   ========================================================================= */
+async function decodeBlob(blob) {
+  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+  const ab = await blob.arrayBuffer();
+  return await AC.decodeAudioData(ab.slice(0));
+}
+
+function mono(buf) {
+  if (buf.numberOfChannels === 1) return buf.getChannelData(0);
+  const a = buf.getChannelData(0), b = buf.getChannelData(1);
+  const out = new Float32Array(a.length);
+  for (let i = 0; i < a.length; i++) out[i] = (a[i] + b[i]) / 2;
+  return out;
+}
+
+/* 20ms 一帧 RMS(dB)，返回时间轴与数值 */
+function envelope(data, sr, hop = 0.02) {
+  const n = Math.floor(data.length / (sr * hop));
+  const db = new Float32Array(n);
+  const step = Math.max(1, Math.floor(sr * hop));
+  for (let i = 0; i < n; i++) {
+    let sum = 0; const s = i * step, e = Math.min(data.length, s + step);
+    for (let j = s; j < e; j++) sum += data[j] * data[j];
+    db[i] = 10 * Math.log10(sum / Math.max(1, e - s) + 1e-9);
+  }
+  return { db, hop, dur: data.length / sr };
+}
+
+/* 语音段：自适应阈值 + 合并短间隔 + 去碎片 */
+function segments(env) {
+  const { db, hop } = env;
+  const sorted = Array.from(db).sort((a, b) => a - b);
+  const floor = sorted[Math.floor(sorted.length * 0.10)] || -70;
+  const peak = sorted[Math.floor(sorted.length * 0.995)] || -20;
+  const thr = Math.max(floor + 9, peak - 38);
+  const segs = [];
+  let st = -1;
+  for (let i = 0; i < db.length; i++) {
+    const on = db[i] > thr;
+    if (on && st < 0) st = i;
+    if (!on && st >= 0) { segs.push([st * hop, i * hop]); st = -1; }
+  }
+  if (st >= 0) segs.push([st * hop, db.length * hop]);
+  const merged = [];
+  segs.forEach(s => {
+    if (merged.length && s[0] - merged[merged.length - 1][1] < 0.32) merged[merged.length - 1][1] = s[1];
+    else merged.push([s[0], s[1]]);
+  });
+  return merged.filter(s => s[1] - s[0] >= 0.10).map(s => ({ t: s[0], d: s[1] - s[0] }));
+}
+
+/* YIN 基频，降采样到 8k */
+function pitchTrack(data, sr, fmin = 65, fmax = 420) {
+  const target = 8000;
+  let x = data;
+  if (sr > target) {
+    const k = Math.round(sr / target);
+    const n = Math.floor(data.length / k);
+    x = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      let s = 0;
+      for (let j = 0; j < k; j++) s += data[i * k + j];
+      x[i] = s / k;
+    }
+    sr = sr / k;
+  }
+  const W = Math.round(sr * 0.040), hop = Math.round(sr * 0.010);
+  const tmax = Math.floor((fmax > 0 ? sr / fmin : 0));
+  const tmin = Math.round(sr / fmax);
+  const out = { t: [], hz: [] };
+  const d = new Float32Array(tmax);
+  for (let i = 0; i + W + tmax < x.length; i += hop) {
+    let energy = 0;
+    for (let j = 0; j < W; j++) energy += x[i + j] * x[i + j];
+    if (energy < 1e-5) continue;
+    for (let tau = 0; tau < tmax; tau++) {
+      let s = 0;
+      for (let j = 0; j < W; j++) { const v = x[i + j] - x[i + j + tau]; s += v * v; }
+      d[tau] = s;
+    }
+    let run = 0;
+    for (let tau = 0; tau < tmax; tau++) { run += d[tau]; d[tau] = run > 0 ? d[tau] * tau / run : 1; }
+    let best = -1;
+    for (let tau = tmin; tau < tmax; tau++) {
+      if (d[tau] < 0.22) {
+        while (tau + 1 < tmax && d[tau + 1] < d[tau]) tau++;
+        best = tau; break;
+      }
+    }
+    if (best > 0) { out.t.push((i + W / 2) / sr); out.hz.push(sr / best); }
+  }
+  return out;
+}
+
+/* 半音统计（对 12 个半音取整后做中值平滑，抑制倍频错） */
+function pitchStats(tr) {
+  if (!tr.hz.length) return { range: 0, med: 0, ok: false };
+  let v = tr.hz.slice();
+  for (let k = 0; k < 2; k++) {
+    for (let i = 0; i < v.length; i++) {
+      const a = v[i - 1] || v[i], b = v[i + 1] || v[i];
+      if ((a > v[i] * 1.8 && b > v[i] * 1.8) || (a < v[i] / 1.8 && b < v[i] / 1.8)) v[i] = (a + b) / 2;
+    }
+  }
+  const st = v.map(h => 12 * Math.log2(h / 55));
+  st.sort((a, b) => a - b);
+  const p = q => st[Math.floor((st.length - 1) * q)];
+  return { range: +(p(0.95) - p(0.05)).toFixed(1), med: +p(0.5).toFixed(1), ok: true, st };
+}
+
+async function analyse(rec) {
+  if (!rec || !rec.blob || rec.blob.size < 800) {
+    return { ok: false, dur: 0, speech: 0, wpm: 0, pauses: 0, longest: 0, segs: [], env: null, pitch: null };
+  }
+  let buf;
+  try { buf = await decodeBlob(rec.blob); }
+  catch (e) { return { ok: false, dur: 0, err: "录音解码失败", segs: [], pitch: null, env: null }; }
+  const data = mono(buf), sr = buf.sampleRate;
+  const env = envelope(data, sr);
+  const segs = segments(env);
+  const speech = segs.reduce((a, s) => a + s.d, 0);
+  const gaps = [];
+  for (let i = 1; i < segs.length; i++) gaps.push(segs[i].t - (segs[i - 1].t + segs[i - 1].d));
+  const longest = gaps.length ? Math.max(...gaps) : 0;
+  const pauses = gaps.filter(g => g > 0.9).length;
+  const tr = pitchTrack(data, sr);
+  return {
+    ok: true, dur: buf.duration, sr, speech, segs, env,
+    pauses, longest: +longest.toFixed(2),
+    pitch: pitchStats(tr), pitchRaw: tr
+  };
+}
+
+/* 波形 + 语音段 + 音高曲线 */
+function drawWave(cv, an, opts = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth || 600, h = cv.clientHeight || 96;
+  cv.width = w * dpr; cv.height = h * dpr;
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (!an || !an.env) {
+    g.fillStyle = "#b9c3d0"; g.font = "12px sans-serif";
+    g.fillText("（没有录到声音）", 12, h / 2);
+    return;
+  }
+  const { db, hop } = an.env;
+  const dur = an.dur || 1;
+  const mid = h * 0.56, amp = h * 0.40;
+  const sorted = Array.from(db).sort((a, b) => a - b);
+  const peak = sorted[Math.floor(sorted.length * 0.995)] || -20;
+  const floor = sorted[Math.floor(sorted.length * 0.10)] || -70;
+  // 语音段底色
+  an.segs.forEach(s => {
+    g.fillStyle = "rgba(31,95,168,.07)";
+    g.fillRect((s.t / dur) * w, 0, Math.max(1, (s.d / dur) * w), h);
+  });
+  // 波形
+  g.strokeStyle = "#1f5fa8"; g.lineWidth = 1;
+  g.beginPath();
+  for (let i = 0; i < db.length; i++) {
+    const x = (i * hop / dur) * w;
+    const n = clamp((db[i] - floor) / Math.max(6, peak - floor), 0, 1);
+    g.moveTo(x, mid - n * amp);
+    g.lineTo(x, mid + n * amp);
+  }
+  g.stroke();
+  // 音高曲线
+  if (an.pitchRaw && an.pitchRaw.hz.length > 2) {
+    const t = an.pitchRaw.t, hz = an.pitchRaw.hz;
+    const st = hz.map(v => 12 * Math.log2(v / 55));
+    let lo = Math.min(...st), hi = Math.max(...st);
+    if (hi - lo < 2) { hi = lo + 2; }
+    g.strokeStyle = "#c85a1e"; g.lineWidth = 1.6; g.beginPath();
+    let started = false;
+    for (let i = 0; i < t.length; i++) {
+      const x = (t[i] / dur) * w;
+      const y = h - 8 - ((st[i] - lo) / (hi - lo)) * (h * 0.34);
+      if (!started) { g.moveTo(x, y); started = true; } else g.lineTo(x, y);
+    }
+    g.stroke();
+  }
+  // 目标时长参考线
+  if (opts.target && opts.target > 0) {
+    const x = clamp((opts.target / dur) * w, 0, w - 1);
+    g.strokeStyle = "#9aa6b5"; g.setLineDash([4, 4]); g.beginPath();
+    g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); g.setLineDash([]);
+  }
+}
+
+/* =========================================================================
+   3. 语音合成（播放指令 / 示范）
+   ========================================================================= */
+const TTS = { voices: [], picked: null, on: true };
+
+function loadVoices() {
+  if (!window.speechSynthesis) return;
+  TTS.voices = speechSynthesis.getVoices() || [];
+  const en = TTS.voices.filter(v => /^en[-_]/i.test(v.lang));
+  const score = v => (/natural|online/i.test(v.name) ? 3 : 0) + (/Google|Zira|Aria|Jenny|Samantha|Karen/i.test(v.name) ? 2 : 0)
+    + (/en[-_]US/i.test(v.lang) ? 1 : 0);
+  en.sort((a, b) => score(b) - score(a));
+  TTS.picked = en[0] || TTS.voices[0] || null;
+  if (TTS.picked) $("#btnVoice").textContent = "语音：" + TTS.picked.name.replace(/Microsoft\s*/i, "").slice(0, 22);
+}
+
+function speak(text, { rate = 0.92, pause = 0 } = {}) {
+  return new Promise(resolve => {
+    if (!window.speechSynthesis || !TTS.on) { resolve(); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    if (TTS.picked) u.voice = TTS.picked;
+    u.lang = (TTS.picked && TTS.picked.lang) || "en-US";
+    u.rate = rate; u.pitch = 1; u.volume = 1;
+    let done = false;
+    const fin = () => { if (done) return; done = true; setTimeout(resolve, pause); };
+    u.onend = fin; u.onerror = fin;
+    setTimeout(fin, AUTO ? 900 : Math.max(2500, text.length * 95));
+    speechSynthesis.speak(u);
+  });
+}
+
+/* =========================================================================
+   4. 流程引擎
+   ========================================================================= */
+const S = {
+  set: null, idx: 0, steps: [], cur: 0,
+  recs: {}, an: {}, checks: {}, running: false, aborted: false
+};
+const T = AUTO
+  ? { prep: 1, rec: 2, gap: 0.2, twice: 0.3 }
+  : { prep: 1, rec: 1, gap: 1, twice: 1 };
+
+function partOf(kind) {
+  if (kind.startsWith("read")) return "I";
+  if (kind === "quick") return "II";
+  if (kind === "retell") return "III";
+  if (kind === "talk") return "IV";
+  return "";
+}
+function partName(p) {
+  return { I: "Ⅰ 朗读", II: "Ⅱ 交际应答", III: "Ⅲ 复述", IV: "Ⅳ 表达" }[p] || "";
+}
+
+function buildSteps(set) {
+  const st = [{ k: "ready" }, { k: "readPhrases" }, { k: "readSentences" }];
+  set.quick.items.forEach((it, i) => st.push({ k: "quick", i }));
+  st.push({ k: "retell" }, { k: "talk" }, { k: "done" });
+  return st;
+}
+
+/* —— UI 小工具 —— */
+function setStage(title, hint, html) {
+  $("#sTitle").textContent = title;
+  $("#sHint").textContent = hint || "";
+  $("#sBody").innerHTML = html || "";
+}
+function setState(text, cls) {
+  const el = $("#pState");
+  el.textContent = text;
+  el.className = "pill" + (cls ? " " + cls : "");
+}
+function setStatus(t) { $("#sStatus").innerHTML = t; }
+function setRing(sec, total, rec) {
+  const r = $("#ring");
+  r.classList.toggle("rec", !!rec);
+  const left = Math.ceil(sec);
+  $("#ringTxt").textContent = left >= 0 ? left : "0";
+  r.style.setProperty("--p", clamp((1 - sec / Math.max(0.001, total)) * 100, 0, 100));
+  $("#sBar").style.width = clamp((1 - sec / Math.max(0.001, total)) * 100, 0, 100) + "%";
+}
+
+/* 倒计时；可被 abort 打断 */
+async function countdown(sec, total, onTick) {
+  const t0 = performance.now();
+  const dur = sec * 1000 * (AUTO ? 0.04 : 1);
+  return new Promise(resolve => {
+    const tick = () => {
+      if (S.aborted) { resolve(false); return; }
+      if (S.skip) { S.skip = false; resolve(false); return; }
+      const left = (dur - (performance.now() - t0)) / 1000;
+      if (onTick) onTick(clamp(left, 0, sec));
+      if (left <= 0) { resolve(true); return; }
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}
+
+/* 提前结束：点“跳过本题” */
+function skipNow() { S.skip = true; }
+
+/* ---------- 各环节 ---------- */
+async function stepReady() {
+  setStage("上海中考英语听说测试", "人机对话 · 满分 10 分", `
+    <div style="font-size:15px;line-height:2">
+      <div>· 本场共 <b>四道大题</b>，四项各 2.5 分</div>
+      <div>· 听到提示音后开始录音，请在倒计时结束前说完</div>
+      <div>· 建议戴耳机，麦克风离嘴 10–15 厘米</div>
+    </div>
+    <div class="legend" style="margin-top:14px">3 秒后自动开始，请先试一下耳机和话筒。</div>`);
+  setStatus("准备开始…");
+  setRing(3, 3, false);
+  await countdown(3, 3, s => setRing(s, 3, false));
+  beep(660, 160);
+}
+
+async function stepReadPhrases() {
+  const r = S.set.read;
+  setStage("Ⅰ. 朗读 · Section 1（词组）", `准备 ${r.phrasePrep} 秒 → 朗读 ${r.phraseRead} 秒`,
+    r.phrases.map((p, i) => `<div class="line"><span class="num">${i + 1}.</span>${p}</div>`).join(""));
+  await prepPhase(r.phrasePrep, "准备时间");
+  await recPhase("readPhrases", r.phraseRead, "R", "请朗读这三个词组");
+}
+
+async function stepReadSentences() {
+  const r = S.set.read;
+  const html = r.sentences.map((s, i) =>
+    `<div class="line"><span class="num">${i + 1}.</span>${s.text}${
+      s.tone ? `<span class="tone">${s.tone}</span>` : ""}</div>`).join("");
+  setStage("Ⅰ. 朗读 · Section 2（句子）", `准备 ${r.sentencePrep} 秒 → 朗读 ${r.sentenceRead} 秒，注意升降调`,
+    `<div class="big-sentence">${html}</div>`);
+  await prepPhase(r.sentencePrep, "准备时间");
+  await recPhase("readSentences", r.sentenceRead, "R", "请朗读这两个句子");
+}
+
+async function stepQuick(step) {
+  const it = S.set.quick.items[step.i];
+  const q = S.set.quick;
+  setStage(`Ⅱ. 交际应答 · 第 ${step.i + 1} / 5 题`, `听清问题 → 准备 ${q.prep} 秒 → 应答 ${q.answer} 秒`,
+    `<div class="line"><span class="num">${step.i + 1}.</span><span class="blank"></span></div>
+     <div class="legend">题干不在屏幕上，只能听 —— 真实考试也是听到什么答什么。</div>`);
+  setState("播放题目", "live");
+  await speak(it.q, { rate: 0.9 });
+  setState("考试中");
+  await prepPhase(q.prep, "准备时间");
+  await recPhase("quick" + step.i, q.answer, "A", "请完整应答（不要只答一个词）");
+}
+
+async function stepRetell() {
+  const r = S.set.retell;
+  const pts = r.points.length
+    ? `<div class="pts">${r.points.map(p => `<span>${p}</span>`).join("")}</div>`
+    : `<div class="legend">本题无提示词，听录音抓 5W1H（who / when / where / what / why / how）。</div>`;
+  setStage("Ⅲ. 复述", `听两遍 → 准备 ${r.prep} 秒 → 复述 ${r.answer} 秒`, `
+    <div style="font-size:14px;color:var(--ink2)">听一篇短文（播放两遍），然后根据提示复述。</div>
+    ${pts}`);
+  setState("播放录音 1/2", "live");
+  await speak(r.passage, { rate: 0.88 });
+  if (!AUTO) await sleep(1200 * T.twice);
+  setState("播放录音 2/2", "live");
+  await speak(r.passage, { rate: 0.88 });
+  setState("考试中");
+  await prepPhase(r.prep, "准备时间（可在纸上记要点）");
+  await recPhase("retell", r.answer, "A", "请复述，注意时态统一");
+}
+
+async function stepTalk() {
+  const t = S.set.talk;
+  const pics = t.pictures && t.pictures.length
+    ? `<div class="pics">${t.pictures.map(p => `<img src="images/${p}" alt="">`).join("")}</div>` : "";
+  setStage("Ⅳ. 表达（口头作文）", `准备 ${t.prep} 秒 → 表达 ${t.answer} 秒，至少 5 句`,
+    `${t.prompt ? `<div class="big-sentence">${t.prompt}</div>` : ""}
+     ${pics}
+     <div class="legend">建议结构：观点 1 句 → First / Second / What's more → 结尾 1 句。</div>`);
+  await prepPhase(t.prep, "准备时间");
+  await recPhase("talk", t.answer, "A", "请连续说，至少 5 句");
+}
+
+async function prepPhase(sec, label) {
+  setState(label);
+  setStatus(`${label} · 还剩 <b>${sec}</b> 秒`);
+  const ok = await countdown(sec, sec, s => { setRing(s, sec, false); setStatus(`${label} · 还剩 <b>${Math.ceil(s)}</b> 秒`); });
+  if (S.aborted) return;
+  setRing(0, 1, false);
+}
+
+async function recPhase(key, sec, icon, tip) {
+  setState("录音中", "live");
+  setStatus(`<span class="mic-dot"></span> 正在录音 · ${tip}`);
+  $("#sMic").textContent = "麦克风已开启";
+  await sleep(AUTO ? 60 : 320);
+  beep(880, 120);
+  startRec();
+  const ok = await countdown(sec, sec, s => {
+    setRing(s, sec, true);
+    setStatus(`<span class="mic-dot"></span> 录音中 · 还剩 <b>${Math.ceil(s)}</b> 秒 · ${tip}`);
+  });
+  beep(560, 180);
+  const r = await stopRec();
+  setRing(0, 1, false);
+  if (r) {
+    S.recs[key] = r;
+    setStatus("正在分析录音…");
+    S.an[key] = await analyse(r);
+  }
+  setStatus("本题完成");
+  await sleep(AUTO ? 30 : 500);
+}
+
+/* ---------- 主循环 ---------- */
+async function runExam(set) {
+  S.set = set; S.recs = {}; S.an = {}; S.checks = { retell: [], talk: [] }; S.cur = 0; S.aborted = false; S.running = true;
+  S.steps = buildSteps(set);
+  show("exam");
+  $("#btnNext").disabled = false;
+  $("#pSet").textContent = "第 " + set.no + " 套 · " + set.title.replace(/^.*（(.*)）$/, "$1");
+  canvasClean();
+
+  try { await ensureMic(); $("#sMic").textContent = "麦克风已开启"; }
+  catch (e) {
+    $("#sMic").textContent = "";
+    toast("没有麦克风权限，只能看题不能录音");
+  }
+
+  for (const step of S.steps) {
+    if (S.aborted) break;
+    $("#pPart").textContent = partName(partOf(step.k)) || "考试";
+    try {
+      if (step.k === "ready") await stepReady();
+      else if (step.k === "readPhrases") await stepReadPhrases();
+      else if (step.k === "readSentences") await stepReadSentences();
+      else if (step.k === "quick") await stepQuick(step);
+      else if (step.k === "retell") await stepRetell();
+      else if (step.k === "talk") await stepTalk();
+      else if (step.k === "done") break;
+    } catch (e) {
+      console.error(e);
+      toast("本题出错：" + e.message);
+    }
+  }
+  S.running = false;
+  $("#btnNext").disabled = true;
+  stopMic();
+  if (!S.aborted) buildReport();
+  else show("home");
+}
+
+function canvasClean() { $("#sBody").innerHTML = ""; }
+
+/* =========================================================================
+   5. 评分（诊断型）
+   ========================================================================= */
+const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(Boolean);
+
+function wordsOf(set) {
+  return {
+    phrases: set.read.phrases.reduce((a, p) => a + norm(p).length, 0),
+    sentences: set.read.sentences.reduce((a, s) => a + norm(s.text).length, 0)
+  };
+}
+
+/* 朗读：2.5 分 */
+function scoreRead(an, expectWords, seconds) {
+  const issues = [];
+  let sc = 2.5;
+  if (!an || !an.ok || an.speech < 0.4) {
+    return { sc: 0, issues: [{ t: "没有检测到有效朗读", bad: true }], wpm: 0 };
+  }
+  const wpm = Math.round(expectWords / Math.max(0.6, an.speech) * 60);
+  const cover = an.speech / Math.max(1, Math.min(an.dur, seconds));
+  if (wpm < 70) { sc -= 0.55; issues.push({ t: `语速偏慢：约 ${wpm} 词/分（目标 100–150），读得太拖`, bad: true }); }
+  else if (wpm < 95) { sc -= 0.25; issues.push({ t: `语速略慢：约 ${wpm} 词/分，可再顺一点`, bad: true }); }
+  else if (wpm > 190) { sc -= 0.3; issues.push({ t: `语速偏快：约 ${wpm} 词/分，元音容易吞掉`, bad: true }); }
+  else issues.push({ t: `语速合适：约 ${wpm} 词/分`, bad: false });
+
+  if (an.pauses >= 4) { sc -= 0.4; issues.push({ t: `停顿 ${an.pauses} 次（最长 ${an.longest}s），流利度扣分重灾区`, bad: true }); }
+  else if (an.pauses >= 2) { sc -= 0.2; issues.push({ t: `停顿 ${an.pauses} 次，注意连读别断开`, bad: true }); }
+  else issues.push({ t: "几乎没有卡顿", bad: false });
+
+  if (an.pitch && an.pitch.ok) {
+    if (an.pitch.range < 2.5) { sc -= 0.3; issues.push({ t: `语调太平：音高起伏只有 ${an.pitch.range} 个半音，像念经`, bad: true }); }
+    else issues.push({ t: `语调有起伏（${an.pitch.range} 个半音）`, bad: false });
+  }
+  if (cover < 0.45) { sc -= 0.25; issues.push({ t: "有效发声时间偏短，可能有漏读/跳读", bad: true }); }
+  return { sc: clamp(+sc.toFixed(2), 0, 2.5), issues, wpm };
+}
+
+/* 交际应答：5 题 × 0.5 */
+function scoreQuick(set) {
+  const issues = [];
+  let sc = 0;
+  set.quick.items.forEach((it, i) => {
+    const an = S.an["quick" + i];
+    let v = 0.5;
+    if (!an || !an.ok || an.speech < 0.25) {
+      v = 0; issues.push({ t: `第 ${i + 1} 题没有有效应答`, bad: true });
+    } else {
+      const d = an.speech;
+      if (d < 0.55) { v -= 0.35; issues.push({ t: `第 ${i + 1} 题只答了一两个词（${d.toFixed(1)}s），要用完整句`, bad: true }); }
+      else if (d > 8) { v -= 0.1; issues.push({ t: `第 ${i + 1} 题说太长（${d.toFixed(1)}s），机考按题限时`, bad: true }); }
+      if (an.longest > 1.4) { v -= 0.15; issues.push({ t: `第 ${i + 1} 题中间卡了 ${an.longest}s`, bad: true }); }
+    }
+    sc += clamp(v, 0, 0.5);
+  });
+  if (!issues.length) issues.push({ t: "五题都有完整应答", bad: false });
+  return { sc: +sc.toFixed(2), issues };
+}
+
+/* 复述 / 表达：可测部分 1.8 分 + 自查内容 0.7 分 */
+function scoreOpen(an, sec, kind, set) {
+  const issues = [];
+  const MAXM = 1.8, MAXC = 0.7;
+  let m = MAXM;
+  if (!an || !an.ok || an.speech < 0.5) {
+    return { sc: 0, issues: [{ t: "没有检测到有效录音", bad: true }], sentenceCount: 0, measured: 0, content: 0 };
+  }
+  const cover = an.speech / sec;
+  if (cover < 0.25) { m -= 0.58; issues.push({ t: `只说了 ${an.speech.toFixed(0)} 秒（限时 ${sec} 秒），内容量明显不够`, bad: true }); }
+  else if (cover < 0.45) { m -= 0.32; issues.push({ t: `说了 ${an.speech.toFixed(0)} 秒，还能再撑满一点`, bad: true }); }
+  else issues.push({ t: `有效表达 ${an.speech.toFixed(0)} 秒`, bad: false });
+
+  if (an.pauses >= 6) { m -= 0.32; issues.push({ t: `停顿 ${an.pauses} 次，思路断了；先列提纲再开口`, bad: true }); }
+  else if (an.pauses >= 3) { m -= 0.15; issues.push({ t: `停顿 ${an.pauses} 次（最长 ${an.longest}s）`, bad: true }); }
+  else issues.push({ t: "整体连贯", bad: false });
+
+  const sentenceCount = Math.max(1, an.segs.filter(s => s.d > 0.35).length);
+  if (kind === "talk") {
+    if (sentenceCount < 5) { m -= 0.29; issues.push({ t: `只说了约 ${sentenceCount} 句，要求至少 5 句`, bad: true }); }
+    else issues.push({ t: `约 ${sentenceCount} 句，句数达标`, bad: false });
+  }
+  if (an.pitch && an.pitch.ok && an.pitch.range < 2) {
+    m -= 0.11; issues.push({ t: "语调偏平淡", bad: true });
+  }
+
+  const items = kind === "retell" ? (set.retell.points || []).length : 4;
+  const checked = (S.checks[kind] || []).filter(Boolean).length;
+  let content = items ? MAXC * clamp(checked / items, 0, 1) : MAXC * 0.5;
+  if (items && checked < items) {
+    issues.push({ t: `内容要点自查：${checked} / ${items} 条说到`, bad: true });
+  }
+  return {
+    sc: clamp(+(clamp(m, 0, MAXM) + content).toFixed(2), 0, 2.5),
+    issues, sentenceCount, measured: clamp(m, 0, MAXM), content
+  };
+}
+
+function scoreAll() {
+  const set = S.set, w = wordsOf(set);
+  const readP = scoreRead(S.an["readPhrases"], w.phrases, set.read.phraseRead);
+  const readS = scoreRead(S.an["readSentences"], w.sentences, set.read.sentenceRead);
+  const quick = scoreQuick(set);
+  const retell = scoreOpen(S.an["retell"], set.retell.answer, "retell", set);
+  const talk = scoreOpen(S.an["talk"], set.talk.answer, "talk", set);
+
+  const readDetail = {
+    sc: +(((readP.sc + readS.sc) / 2)).toFixed(2),
+    issues: [
+      ...readP.issues.map(i => ({ ...i, t: "Section 1 " + i.t })),
+      ...readS.issues.map(i => ({ ...i, t: "Section 2 " + i.t }))
+    ]
+  };
+  const total = +(readDetail.sc + quick.sc + retell.sc + talk.sc).toFixed(1);
+  return { read: readDetail, readP, readS, quick, retell, talk, total };
+}
+
+/* =========================================================================
+   6. 报告
+   ========================================================================= */
+function buildReport() {
+  const set = S.set, R = scoreAll();
+  if (!DEMO) store.setBest(set.no, R.total);
+
+  $("#rScore").textContent = R.total.toFixed(1);
+  const lv = R.total >= 9 ? "接近满分，保持稳定" : R.total >= 8 ? "基本达标，扣分点很集中" :
+    R.total >= 6.5 ? "中等水平，主要在流利度和内容量" : "需要从朗读和成句开始抓";
+  $("#rDesc").innerHTML = `本次 <b>${set.title}</b> 诊断分 <b id="rTotal2">${R.total.toFixed(1)}</b> / 10（<span id="rLevel">${lv}</span>）。<br>
+    诊断分只反映「能测到的部分」：语速、停顿、时长、语调起伏、句数；语法与内容要点需要你自己听录音核对下部清单。
+    <span style="color:var(--ink3)">官方机评不对外，任何工具都无法复刻，别把这里的分当预测分。</span>`;
+
+  const dims = [
+    { key: "read", k: "Ⅰ 朗读", v: R.read.sc },
+    { key: "quick", k: "Ⅱ 交际应答", v: R.quick.sc },
+    { key: "retell", k: "Ⅲ 复述", v: R.retell.sc },
+    { key: "talk", k: "Ⅳ 表达", v: R.talk.sc }
+  ];
+  $("#rDims").innerHTML = dims.map(d => `
+    <div class="dim">
+      <div class="k">${d.k}</div>
+      <div class="v" data-dim="${d.key}">${d.v.toFixed(1)}<span style="font-size:12px;color:var(--ink3);font-weight:400"> / 2.5</span></div>
+      <div class="bar"><i data-bar="${d.key}" style="width:${(d.v / 2.5 * 100).toFixed(0)}%"></i></div>
+    </div>`).join("");
+
+  const wrap = $("#rParts");
+  wrap.innerHTML = "";
+  wrap.appendChild(partRead(set, R));
+  wrap.appendChild(partQuick(set, R));
+  wrap.appendChild(partRetell(set, R));
+  wrap.appendChild(partTalk(set, R));
+
+  show("report");
+  window.scrollTo(0, 0);
+  setTimeout(() => renderCanvases(document.getElementById("rParts")), 60);
+  if (AUTO) {
+    document.title = "DONE score=" + R.total;
+    try {
+      fetch("/save", {
+        method: "POST", body: JSON.stringify({
+          kind: "selftest", total: R.total,
+          parts: { read: R.read.sc, quick: R.quick.sc, retell: R.retell.sc, talk: R.talk.sc },
+          recs: Object.keys(S.recs), an: Object.keys(S.an)
+        })
+      });
+    } catch (e) { }
+  }
+}
+
+function issuesHtml(list) {
+  return list.map(i => `<div class="issue ${i.bad ? "" : "good"}"><i>${i.bad ? "!" : "✓"}</i><span>${i.t}</span></div>`).join("");
+}
+
+function recBlock(key, target, note) {
+  const an = S.an[key], rec = S.recs[key];
+  const id = "cv_" + key;
+  const dur = an && an.ok ? an.dur.toFixed(1) + "s" : "—";
+  const speech = an && an.ok ? an.speech.toFixed(1) + "s" : "—";
+  const seg = an && an.ok ? an.segs.length : 0;
+  return `
+    <div class="rec-row">
+      <span>录音 ${dur}</span><span>有效发声 ${speech}</span><span>语音段 ${seg}</span>
+      ${an && an.ok ? `<span>停顿 ${an.pauses} 次</span>` : ""}
+      ${note ? `<span style="color:var(--ink3)">${note}</span>` : ""}
+      ${rec ? `<button class="btn ghost mini" data-play="${key}">▶ 回听</button>` : ""}
+    </div>
+    <canvas id="${id}" data-key="${key}" data-target="${target || 0}"></canvas>
+    <div class="legend">蓝色=音量包络　橙色=音高曲线（YIN）　虚线=正常语速下的应有时长</div>`;
+}
+
+function renderCanvases(root) {
+  $$("canvas[data-key]").forEach(cv => {
+    if (!root.contains(cv)) return;
+    drawWave(cv, S.an[cv.dataset.key], { target: +cv.dataset.target || 0 });
+  });
+}
+
+function partRead(set, R) {
+  const w = wordsOf(set);
+  const exp = n => +(n / 2.2).toFixed(1);   /* 132 词/分的正常语速 → 预计有效发声秒数 */
+  const d = document.createElement("details");
+  d.className = "part"; d.open = true;
+  d.innerHTML = `<summary><span class="t">Ⅰ. 朗读（2.5 分）</span><span class="sc" data-sc="read">${R.read.sc.toFixed(1)}</span></summary>
+    <div class="body">
+      ${issuesHtml(R.read.issues)}
+      ${recBlock("readPhrases", exp(w.phrases), "Section 1 · 3 个词组")}
+      ${recBlock("readSentences", exp(w.sentences), "Section 2 · 2 个句子")}
+      <div class="ans"><span class="k">参考朗读 · 语调</span>
+        ${set.read.phrases.map((p, i) => `<div class="en">${i + 1}. ${p}</div>`).join("")}
+        ${set.read.sentences.map((s, i) => `<div class="en">${i + 1}. ${s.text} <span style="color:#1f5fa8;font-size:12px">${s.tone || ""}</span></div>`).join("")}
+        <div style="margin-top:8px">
+          <button class="btn ghost mini" data-speak="${encodeURIComponent(set.read.phrases.join(". "))}">▶ 听词组示范</button>
+          <button class="btn ghost mini" data-speak="${encodeURIComponent(set.read.sentences.map(s => s.text).join(" "))}">▶ 听句子示范</button>
+        </div>
+      </div>
+      <div class="legend">自查：读错的词有没有倒回去重读？倒回重读机考直接扣流利度。</div>
+    </div>`;
+  return d;
+}
+
+function partQuick(set, R) {
+  const d = document.createElement("details");
+  d.className = "part";
+  d.innerHTML = `<summary><span class="t">Ⅱ. 交际应答（2.5 分）</span><span class="sc" data-sc="quick">${R.quick.sc.toFixed(1)}</span></summary>
+    <div class="body">
+      ${issuesHtml(R.quick.issues)}
+      ${set.quick.items.map((it, i) => recBlock("quick" + i, set.quick.answer, "第 " + (i + 1) + " 题")).join("")}
+      <div class="ans"><span class="k">参考答案（可接受说法，不是唯一答案）</span>
+        ${set.quick.items.map((it, i) => `
+          <div class="qa">
+            <div class="q"><b>${i + 1}.</b> ${it.q}</div>
+            <div class="a">${it.raw || it.answers.join(" / ")}</div>
+            <div style="margin-top:4px"><button class="btn ghost mini" data-speak="${encodeURIComponent(it.q)}">▶ 听题干</button>
+            <button class="btn ghost mini" data-speak="${encodeURIComponent(it.answers[0] || "")}">▶ 听参考答案</button></div>
+          </div>`).join("")}
+      </div>
+      <div class="legend">自查：每题是不是「先表态 + 再补一句」，避免只答 Yes / OK。</div>
+    </div>`;
+  return d;
+}
+
+function partRetell(set, R) {
+  const pts = set.retell.points;
+  const d = document.createElement("details");
+  d.className = "part";
+  d.innerHTML = `<summary><span class="t">Ⅲ. 复述（2.5 分）</span><span class="sc" data-sc="retell">${R.retell.sc.toFixed(1)}</span></summary>
+    <div class="body">
+      ${issuesHtml(R.retell.issues)}
+      ${recBlock("retell", set.retell.answer, "复述")}
+      <div class="ans"><span class="k">听力原文（也就是参考答案）</span>
+        <div class="en">${set.retell.passage}</div>
+        <div style="margin-top:8px"><button class="btn ghost mini" data-speak="${encodeURIComponent(set.retell.passage)}">▶ 听原文</button></div>
+      </div>
+      ${pts.length ? `<div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">要点自查（听自己的录音，逐条勾）</span>
+        ${pts.map((p, i) => `<label class="chk"><input type="checkbox" data-pt="retell:${i}"><span>${p}</span></label>`).join("")}
+      </div>` : ""}
+      <div class="legend">自查：时态有没有前后跳（was/is 混用）？这是复述最常见的失分点。</div>
+    </div>`;
+  return d;
+}
+
+function partTalk(set, R) {
+  const d = document.createElement("details");
+  d.className = "part";
+  d.innerHTML = `<summary><span class="t">Ⅳ. 表达（2.5 分）</span><span class="sc" data-sc="talk">${R.talk.sc.toFixed(1)}</span></summary>
+    <div class="body">
+      ${issuesHtml(R.talk.issues)}
+      ${recBlock("talk", set.talk.answer, "表达")}
+      <div class="ans"><span class="k">参考范文（背结构，不要背句子）</span>
+        <div class="en">${set.talk.sample}</div>
+        <div style="margin-top:8px"><button class="btn ghost mini" data-speak="${encodeURIComponent(set.talk.sample)}">▶ 听范文</button></div>
+      </div>
+      <div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">表达自查</span>
+        <label class="chk"><input type="checkbox" data-pt="talk:0"><span>开头有一句点题（I'd like to talk about…）</span></label>
+        <label class="chk"><input type="checkbox" data-pt="talk:1"><span>中间至少三个支撑句（First / Second / What's more）</span></label>
+        <label class="chk"><input type="checkbox" data-pt="talk:2"><span>结尾有一句收束（That's why… / In a word…）</span></label>
+        <label class="chk"><input type="checkbox" data-pt="talk:3"><span>没有长时间卡壳、没有反复自我纠正</span></label>
+      </div>
+      <div class="legend">表达题只要「有话说 + 别停」，内容分就拿到了；语法错一两处不致命。</div>
+    </div>`;
+  return d;
+}
+
+/* 勾选自查项后实时重算（内容分只由学生自己判，工具不替学生猜） */
+function refreshScores() {
+  const R = scoreAll();
+  $("#rScore").textContent = R.total.toFixed(1);
+  const t2 = $("#rTotal2"); if (t2) t2.textContent = R.total.toFixed(1);
+  const lvEl = $("#rLevel");
+  if (lvEl) {
+    const lv = R.total >= 9 ? "接近满分，保持稳定" : R.total >= 8 ? "基本达标，扣分点很集中" :
+      R.total >= 6.5 ? "中等水平，主要在流利度和内容量" : "需要从朗读和成句开始抓";
+    lvEl.textContent = lv;
+  }
+  const map = { read: R.read.sc, quick: R.quick.sc, retell: R.retell.sc, talk: R.talk.sc };
+  Object.keys(map).forEach(k => {
+    const v = map[k];
+    const s = document.querySelector(`[data-sc="${k}"]`);
+    if (s) s.textContent = v.toFixed(1);
+    const d = document.querySelector(`[data-dim="${k}"]`);
+    if (d && d.firstChild) d.firstChild.textContent = v.toFixed(1);
+    const b = document.querySelector(`[data-bar="${k}"]`);
+    if (b) b.style.width = (v / 2.5 * 100).toFixed(0) + "%";
+  });
+}
+
+/* =========================================================================
+   7. 交互绑定
+   ========================================================================= */
+function show(id) {
+  $$(".screen").forEach(s => s.classList.toggle("on", s.id === id));
+}
+
+function renderHome() {
+  const best = store.get();
+  const g = $("#setGrid");
+  g.innerHTML = (window.BANK.sets || []).map(s => `
+    <button class="card" data-no="${s.no}">
+      ${best["set" + s.no] ? `<span class="best">最高 ${best["set" + s.no].toFixed(1)}</span>` : ""}
+      <div class="no">第 ${s.no} 套</div>
+      <div class="t">${s.title.replace(/^上海中考英语听说模拟测试/, "听说模拟")}</div>
+      <div class="meta">
+        <span>朗读 ${s.read.phrases.length + s.read.sentences.length} 题</span>
+        <span>应答 5 题</span>
+        <span>复述 ${s.retell.points.length ? s.retell.points.length + " 提示" : "无提示"}</span>
+        ${s.images.length ? `<span>看图表达</span>` : ""}
+      </div>
+    </button>`).join("");
+  g.querySelectorAll(".card").forEach(c => {
+    c.onclick = () => {
+      const no = +c.dataset.no;
+      const set = window.BANK.sets.find(x => x.no === no);
+      if (set) runExam(set);
+    };
+  });
+}
+
+$("#btnQuit").onclick = () => {
+  S.aborted = true; stopMic(); show("home");
+};
+$("#btnHome").onclick = () => show("home");
+$("#btnAgain").onclick = () => runExam(S.set);
+$("#btnPrint").onclick = () => window.print();
+$("#btnVoice").onclick = () => {
+  const list = TTS.voices.filter(v => /^en[-_]/i.test(v.lang));
+  if (!list.length) { toast("系统里没有英文语音"); return; }
+  const i = list.indexOf(TTS.picked);
+  TTS.picked = list[(i + 1) % list.length];
+  $("#btnVoice").textContent = "语音：" + TTS.picked.name.replace(/Microsoft\s*/i, "").slice(0, 22);
+  speak("This is a test. 这是试音。");
+};
+$("#btnNext").onclick = () => { if (S.running) skipNow(); };
+
+document.addEventListener("change", e => {
+  const cb = e.target.closest("input[data-pt]");
+  if (!cb) return;
+  const [k, i] = cb.dataset.pt.split(":");
+  if (!S.checks[k]) S.checks[k] = [];
+  S.checks[k][+i] = cb.checked;
+  refreshScores();
+});
+
+document.addEventListener("click", e => {
+  const sp = e.target.closest("[data-speak]");
+  if (sp) { speak(decodeURIComponent(sp.dataset.speak)); return; }
+  const pl = e.target.closest("[data-play]");
+  if (pl) {
+    const rec = S.recs[pl.dataset.play];
+    if (!rec) { toast("这段没有录音"); return; }
+    const url = URL.createObjectURL(rec.blob);
+    const a = new Audio(url);
+    a.onended = () => URL.revokeObjectURL(url);
+    a.play();
+    return;
+  }
+});
+
+/* 报告里展开时再画 canvas（clientWidth 才准） */
+document.addEventListener("toggle", e => {
+  const d = e.target;
+  if (d && d.classList && d.classList.contains("part")) {
+    setTimeout(() => renderCanvases(d), 30);
+  }
+}, true);
+
+if (window.speechSynthesis) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+  setTimeout(loadVoices, 600);
+}
+
+/* ---- 单元测试模式：构造分析数据，断言评分落在预期区间 ---- */
+const UNIT = new URLSearchParams(location.search).has("unittest");
+if (UNIT) {
+  const set = window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
+  const mk = o => Object.assign({
+    ok: true, pauses: 0, longest: 0.6,
+    segs: Array.from({ length: o.segN || 3 }, (_, i) => ({ t: i * 1.1, d: 0.5 })),
+    pitch: { range: o.range == null ? 4.5 : o.range, ok: true },
+    env: { db: new Float32Array(40), hop: 0.02 }
+  }, o, { dur: o.dur || (o.speech / 0.8) });
+  const res = [];
+  const ck = (name, val, lo, hi) => res.push({ name, val: +(+val).toFixed(2), pass: val >= lo - 1e-6 && val <= hi + 1e-6, lo, hi });
+
+  const a1 = mk({ speech: 4.5, segN: 3 });
+  ck("朗读·正常（107词/分）", scoreRead(a1, 8, 15).sc, 2.2, 2.5);
+  const a2 = mk({ speech: 12.5, segN: 9, pauses: 5, longest: 1.6, range: 1.2 });
+  ck("朗读·拖沓+卡顿+平淡", scoreRead(a2, 22, 10).sc, 0.8, 1.8);
+  ck("朗读·没声音", scoreRead(mk({ speech: 0.2 }), 8, 15).sc, 0, 0.01);
+  const a3 = mk({ speech: 1.6, segN: 6 });
+  ck("朗读·语速过快", scoreRead(a3, 22, 10).sc, 1.4, 2.4);
+
+  S.an = {};
+  set.quick.items.forEach((it, i) => { S.an["quick" + i] = mk({ speech: 2.6, segN: 2 }); });
+  ck("应答·五题都完整", scoreQuick(set).sc, 2.3, 2.5);
+  S.an["quick1"] = mk({ speech: 0.3, segN: 1 });
+  S.an["quick3"] = mk({ speech: 2.4, segN: 2, longest: 1.9 });
+  ck("应答·两题有问题", scoreQuick(set).sc, 1.6, 2.05);
+  S.an = {};
+  ck("应答·全空", scoreQuick(set).sc, 0, 0.01);
+
+  S.checks = { retell: [], talk: [] };
+  const r5 = scoreOpen(mk({ speech: 40, segN: 12, pauses: 2 }), 50, "retell", set);
+  ck("复述·说满未勾要点", r5.sc, 1.5, 1.9);
+  S.checks.retell = (set.retell.points || []).map(() => true);
+  ck("复述·要点全勾", scoreOpen(mk({ speech: 40, segN: 12, pauses: 2 }), 50, "retell", set).sc, 2.3, 2.5);
+  S.checks.retell = (set.retell.points || []).map((_, i) => i < Math.ceil((set.retell.points.length || 1) / 2));
+  ck("复述·只说一半（要点勾一半）", scoreOpen(mk({ speech: 18, segN: 5, pauses: 4 }), 50, "retell", set).sc, 1.3, 1.9);
+  S.checks.retell = (set.retell.points || []).map(() => true);
+  ck("复述·没说话", scoreOpen(mk({ speech: 0.1 }), 50, "retell", set).sc, 0, 0.01);
+
+  S.checks = { retell: [], talk: [1, 1, 1, 0] };
+  ck("表达·6句结构达标", scoreOpen(mk({ speech: 36, segN: 6, pauses: 1 }), 50, "talk", set).sc, 2.0, 2.5);
+  ck("表达·只3句", scoreOpen(mk({ speech: 14, segN: 3, pauses: 2 }), 50, "talk", set).sc, 1.0, 1.8);
+
+  const pass = res.filter(r => r.pass).length;
+  document.body.innerHTML = "<pre style='padding:20px;font:13px monospace'>" +
+    res.map(r => `${r.pass ? "PASS" : "FAIL"}  ${r.name}  = ${r.val}  [${r.lo}, ${r.hi}]`).join("\n") +
+    `\n\n${pass}/${res.length} 通过</pre>`;
+  document.title = `UNIT ${pass}/${res.length}`;
+  try { fetch("/save", { method: "POST", body: JSON.stringify({ kind: "unittest", pass, total: res.length, res }) }); } catch (e) { }
+}
+
+renderHome();
+
+/* ---- 演示模式：不录音，用构造的分析数据直接出报告（用于截图/自检） ---- */
+function fakeAn(dur, ratio, pauses) {
+  const hop = 0.02, n = Math.floor(dur / hop);
+  const db = new Float32Array(n);
+  const segs = [];
+  const speech = dur * ratio;
+  let t = 0.4;
+  const segN = Math.max(3, Math.round(speech / 1.3));
+  const segLen = speech / segN;
+  for (let i = 0; i < segN; i++) { segs.push({ t, d: segLen * 0.82 }); t += segLen; }
+  for (let i = 0; i < n; i++) {
+    const tt = i * hop;
+    const inSeg = segs.some(s => tt >= s.t && tt <= s.t + s.d);
+    db[i] = inSeg ? -14 + Math.sin(i * 0.7) * 6 : -62 + Math.random() * 4;
+  }
+  const hz = [], ts = [];
+  for (let i = 0; i < segs.length; i++) {
+    for (let k = 0; k < 24; k++) {
+      ts.push(segs[i].t + k * 0.04);
+      hz.push(150 + Math.sin(i + k * 0.3) * 26 + (k / 24) * (i % 2 ? -22 : 18));
+    }
+  }
+  return {
+    ok: true, dur, speech, segs, pauses: pauses || 1, longest: 0.7,
+    env: { db, hop, dur }, wpm: 120,
+    pitch: { range: 4.6, med: 41, ok: true }, pitchRaw: { t: ts, hz }
+  };
+}
+
+if (DEMO) {
+  const set = window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
+  S.set = set;
+  if (new URLSearchParams(location.search).get("demo") === "exam") {
+    /* 只渲染答题界面，用于版式检查 */
+    show("exam");
+    $("#pSet").textContent = "第 " + set.no + " 套 · " + set.title.replace(/^.*（(.*)）$/, "$1");
+    $("#pPart").textContent = "Ⅰ 朗读";
+    setStage("Ⅰ. 朗读 · Section 2（句子）", "准备 10 秒 → 朗读 10 秒，注意升降调",
+      `<div class="big-sentence">${set.read.sentences.map((s, i) =>
+        `<div class="line"><span class="num">${i + 1}.</span>${s.text}<span class="tone">${s.tone}</span></div>`).join("")}</div>`);
+    setState("录音中", "live");
+    setStatus(`<span class="mic-dot"></span> 录音中 · 还剩 <b>6</b> 秒 · 请朗读这两个句子`);
+    setRing(6.4, 10, true);
+    $("#sMic").textContent = "麦克风已开启";
+  } else {
+    S.an = {
+      readPhrases: fakeAn(set.read.phraseRead, 0.72, 0),
+      readSentences: fakeAn(set.read.sentenceRead, 0.66, 1),
+      retell: fakeAn(set.retell.answer, 0.78, 3),
+      talk: fakeAn(set.talk.answer, 0.7, 4)
+    };
+    set.quick.items.forEach((it, i) => { S.an["quick" + i] = fakeAn(4.2, 0.75, i === 4 ? 1 : 0); });
+    setTimeout(buildReport, 200);
+  }
+}
+
+if (AUTO) {
+  setTimeout(() => {
+    const set = window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
+    runExam(set);
+  }, 300);
+}
+</script>
+</body>
+</html>
