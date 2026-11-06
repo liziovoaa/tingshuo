@@ -147,8 +147,10 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
   .mm-col.left,.mm-col.right{align-items:stretch;text-align:left}
   .mm-node{font-size:13px;padding:6px 10px}
   .mm-node::after{display:none}
+  /* 左右两组在手机上串成一列，用虚线分开，免得看不出是两个分支 */
+  .mm-col + .mm-col{margin-top:12px;padding-top:12px;border-top:1px dashed #e0e9f5}
   /* 表格太宽时允许横向滚动，不撑破页面 */
-  .qtbl{display:block;overflow-x:auto;font-size:13px;white-space:nowrap}
+  .qtbl{display:block;overflow-x:auto;font-size:13px}
   .qtbl td{padding:7px 10px}
 }
 </style>
