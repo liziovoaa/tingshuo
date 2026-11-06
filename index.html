@@ -113,6 +113,26 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.on{opacity:.94}
 .warnbox{background:#fff8ec;border:1px solid #f3e0bd;color:#8a5a12;border-radius:10px;padding:10px 14px;font-size:13px;margin-top:10px}
+/* 表达题结构化题面：表格 / 思维导图 */
+.qtbl{border-collapse:collapse;margin:14px 0 4px;font-size:14px;max-width:100%}
+.qtbl td{border:1px solid #d9e3ef;padding:8px 13px;vertical-align:top;line-height:1.55}
+.qtbl td div+div{margin-top:2px}
+.qtbl tr.hd td{background:#f1f7fe;color:var(--brand);font-weight:600}
+.qtbl td:first-child{background:#fafcff;color:var(--ink2)}
+.mindmap{display:flex;align-items:center;margin:16px 0 6px;flex-wrap:nowrap}
+.mm-col{display:flex;flex-direction:column;gap:8px;flex:1 1 0;min-width:0}
+.mm-col.left{align-items:flex-end;text-align:right}
+.mm-col.right{align-items:flex-start}
+.mm-node{background:#f5f9ff;border:1px solid #d5e3f5;border-radius:8px;padding:7px 12px;
+  font-size:14px;line-height:1.4;color:var(--ink);max-width:100%;position:relative}
+.mm-col.left .mm-node::after,.mm-col.right .mm-node::after{
+  content:"";position:absolute;top:50%;width:12px;height:1px;background:#c8d8ea}
+.mm-col.left .mm-node::after{right:-13px}
+.mm-col.right .mm-node::after{left:-13px}
+.mm-center{flex:0 0 auto;background:var(--brand);color:#fff;border-radius:10px;padding:11px 18px;
+  font-weight:600;font-size:15px;margin:0 14px;white-space:nowrap;
+  box-shadow:0 3px 10px rgba(31,95,168,.18)}
+
 @media (max-width:760px){
   .wrap{padding:16px 12px 50px}
   .stage{padding:18px 16px;border-radius:14px;min-height:280px}
@@ -121,6 +141,15 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
   .score-hero{padding:18px}
   .score-hero .num{font-size:36px}
   .exam-top{flex-wrap:wrap}
+  /* 思维导图在手机上改成纵向：中心在上，分支往下排 */
+  .mindmap{flex-direction:column;align-items:stretch;gap:10px}
+  .mm-center{order:-1;margin:0 auto;white-space:normal;text-align:center;font-size:14px}
+  .mm-col.left,.mm-col.right{align-items:stretch;text-align:left}
+  .mm-node{font-size:13px;padding:6px 10px}
+  .mm-node::after{display:none}
+  /* 表格太宽时允许横向滚动，不撑破页面 */
+  .qtbl{display:block;overflow-x:auto;font-size:13px;white-space:nowrap}
+  .qtbl td{padding:7px 10px}
 }
 </style>
 </head>
@@ -141,7 +170,7 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
 
   <div class="row" style="margin-top:6px">
     <button class="btn ghost mini" id="btnVoice">语音：自动选择</button>
-    <span style="font-size:12px;color:var(--ink3)" id="voiceHint">用于播放指令与示范朗读</span>
+    <span style="font-size:12px;color:var(--ink3)" id="voiceHint">题目用内置录音播放，这里只影响示范朗读</span>
   </div>
 
   <div class="grid" id="setGrid"></div>
@@ -528,6 +557,39 @@ function loadVoices() {
   if (TTS.picked) $("#btnVoice").textContent = "语音：" + TTS.picked.name.replace(/Microsoft\s*/i, "").slice(0, 22);
 }
 
+/* —— 预生成音频：题目朗读走录音文件，不依赖系统语音 ——
+   系统自带 TTS 在国内常常只有 Google 在线语音（连不上 → 静默无声），
+   所以交际应答 / 复述一律播 mp3；文件缺失时才退回 TTS。 */
+const AUDIO_DIR = "audio/";
+
+function audioUrl(no, key) {
+  return AUDIO_DIR + "set" + String(no).padStart(2, "0") + "_" + key + ".mp3";
+}
+
+function playFile(url, { timeout = 60000 } = {}) {
+  return new Promise(resolve => {
+    let done = false;
+    const fin = ok => { if (!done) { done = true; resolve(ok); } };
+    try {
+      const a = new Audio();
+      a.preload = "auto";
+      a.onended = () => fin(true);
+      a.onerror = () => fin(false);
+      a.src = url;
+      const pr = a.play();
+      if (pr && pr.catch) pr.catch(() => fin(false));
+      setTimeout(() => fin(false), timeout);
+    } catch (e) { fin(false); }
+  });
+}
+
+/* 先播录音；播不出来再退回系统语音 */
+async function playOrSpeak(url, text, opts) {
+  const ok = await playFile(url, { timeout: AUTO ? 2500 : 90000 });
+  if (!ok && text) await speak(text, opts);
+  return ok;
+}
+
 function speak(text, { rate = 0.92, pause = 0 } = {}) {
   return new Promise(resolve => {
     if (!window.speechSynthesis || !TTS.on) { resolve(); return; }
@@ -574,6 +636,39 @@ function buildSteps(set) {
 }
 
 /* —— UI 小工具 —— */
+function escHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/* 表达题的结构化题面：表格 / 思维导图
+   （原书是表格式或思维导图，抽取成纯文本会变成一串逗号词、顺序全乱） */
+function visualHtml(v) {
+  if (!v) return "";
+  if (v.type === "table" && v.rows && v.rows.length) {
+    const rows = v.rows.map((r, ri) => {
+      const tds = r.map(c => {
+        const lines = String(c || "").split("\n").filter(x => x.trim());
+        const inner = (lines.length > 1 ? lines : [lines[0] || ""])
+          .map(x => `<div>${escHtml(x)}</div>`).join("");
+        return `<td>${inner}</td>`;
+      }).join("");
+      return `<tr${ri === 0 ? ' class="hd"' : ""}>${tds}</tr>`;
+    }).join("");
+    return `<table class="qtbl">${rows}</table>`;
+  }
+  if (v.type === "map") {
+    const col = (arr, cls) => (arr && arr.length)
+      ? `<div class="mm-col ${cls}">${arr.map(t => `<div class="mm-node">${escHtml(t)}</div>`).join("")}</div>`
+      : "";
+    return `<div class="mindmap">${col(v.left, "left")}
+      <div class="mm-center">${(v.center || []).map(escHtml).join("<br>")}</div>
+      ${col(v.right, "right")}</div>`;
+  }
+  return "";
+}
+
 function setStage(title, hint, html) {
   $("#sTitle").textContent = title;
   $("#sHint").textContent = hint || "";
@@ -655,7 +750,7 @@ async function stepQuick(step) {
     `<div class="line"><span class="num">${step.i + 1}.</span><span class="blank"></span></div>
      <div class="legend">题干不在屏幕上，只能听 —— 真实考试也是听到什么答什么。</div>`);
   setState("播放题目", "live");
-  await speak(it.q, { rate: 0.9 });
+  await playOrSpeak(audioUrl(S.set.no, "q" + (step.i + 1)), it.q, { rate: 0.9 });
   setState("考试中");
   await prepPhase(q.prep, "准备时间");
   await recPhase("quick" + step.i, q.answer, "A", "请完整应答（不要只答一个词）");
@@ -669,11 +764,12 @@ async function stepRetell() {
   setStage("Ⅲ. 复述", `听两遍 → 准备 ${r.prep} 秒 → 复述 ${r.answer} 秒`, `
     <div style="font-size:14px;color:var(--ink2)">听一篇短文（播放两遍），然后根据提示复述。</div>
     ${pts}`);
+  const pas = audioUrl(S.set.no, "retell");
   setState("播放录音 1/2", "live");
-  await speak(r.passage, { rate: 0.88 });
+  await playOrSpeak(pas, r.passage, { rate: 0.88 });
   if (!AUTO) await sleep(1200 * T.twice);
   setState("播放录音 2/2", "live");
-  await speak(r.passage, { rate: 0.88 });
+  await playOrSpeak(pas, r.passage, { rate: 0.88 });
   setState("考试中");
   await prepPhase(r.prep, "准备时间（可在纸上记要点）");
   await recPhase("retell", r.answer, "A", "请复述，注意时态统一");
@@ -683,8 +779,11 @@ async function stepTalk() {
   const t = S.set.talk;
   const pics = t.pictures && t.pictures.length
     ? `<div class="pics">${t.pictures.map(p => `<img src="images/${p}" alt="">`).join("")}</div>` : "";
+  // 有结构化题面（表格/导图）时用它，纯文本 prompt 是抽取残留，不再展示
+  const body = t.visual ? visualHtml(t.visual)
+    : (t.prompt ? `<div class="big-sentence">${escHtml(t.prompt)}</div>` : "");
   setStage("Ⅳ. 表达（口头作文）", `准备 ${t.prep} 秒 → 表达 ${t.answer} 秒，至少 5 句`,
-    `${t.prompt ? `<div class="big-sentence">${t.prompt}</div>` : ""}
+    `${body}
      ${pics}
      <div class="legend">建议结构：观点 1 句 → First / Second / What's more → 结尾 1 句。</div>`);
   await prepPhase(t.prep, "准备时间");
@@ -992,7 +1091,7 @@ function partQuick(set, R) {
           <div class="qa">
             <div class="q"><b>${i + 1}.</b> ${it.q}</div>
             <div class="a">${it.raw || it.answers.join(" / ")}</div>
-            <div style="margin-top:4px"><button class="btn ghost mini" data-speak="${encodeURIComponent(it.q)}">▶ 听题干</button>
+            <div style="margin-top:4px"><button class="btn ghost mini" data-audio="${audioUrl(set.no, "q" + (i + 1))}">▶ 听题目录音</button>
             <button class="btn ghost mini" data-speak="${encodeURIComponent(it.answers[0] || "")}">▶ 听参考答案</button></div>
           </div>`).join("")}
       </div>
@@ -1011,7 +1110,7 @@ function partRetell(set, R) {
       ${recBlock("retell", set.retell.answer, "复述")}
       <div class="ans"><span class="k">听力原文（也就是参考答案）</span>
         <div class="en">${set.retell.passage}</div>
-        <div style="margin-top:8px"><button class="btn ghost mini" data-speak="${encodeURIComponent(set.retell.passage)}">▶ 听原文</button></div>
+        <div style="margin-top:8px"><button class="btn ghost mini" data-audio="${audioUrl(set.no, "retell")}">▶ 听原文录音</button></div>
       </div>
       ${pts.length ? `<div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">要点自查（听自己的录音，逐条勾）</span>
         ${pts.map((p, i) => `<label class="chk"><input type="checkbox" data-pt="retell:${i}"><span>${p}</span></label>`).join("")}
@@ -1022,12 +1121,19 @@ function partRetell(set, R) {
 }
 
 function partTalk(set, R) {
+  const t = set.talk;
+  const qv = t.visual ? visualHtml(t.visual)
+    : (t.prompt ? `<div class="en">${escHtml(t.prompt)}</div>` : "");
+  const qp = t.pictures && t.pictures.length
+    ? `<div class="pics" style="margin-top:8px">${t.pictures.map(p => `<img src="images/${p}" alt="">`).join("")}</div>` : "";
   const d = document.createElement("details");
   d.className = "part";
   d.innerHTML = `<summary><span class="t">Ⅳ. 表达（2.5 分）</span><span class="sc" data-sc="talk">${R.talk.sc.toFixed(1)}</span></summary>
     <div class="body">
       ${issuesHtml(R.talk.issues)}
       ${recBlock("talk", set.talk.answer, "表达")}
+      ${(qv || qp) ? `<div class="ans" style="background:#fbfcfe;border-color:#e6ecf4">
+        <span class="k" style="color:var(--ink2)">原题</span>${qv}${qp}</div>` : ""}
       <div class="ans"><span class="k">参考范文（背结构，不要背句子）</span>
         <div class="en">${set.talk.sample}</div>
         <div style="margin-top:8px"><button class="btn ghost mini" data-speak="${encodeURIComponent(set.talk.sample)}">▶ 听范文</button></div>
@@ -1123,6 +1229,11 @@ document.addEventListener("change", e => {
 });
 
 document.addEventListener("click", e => {
+  const au = e.target.closest("[data-audio]");
+  if (au) {
+    playFile(au.dataset.audio).then(ok => { if (!ok) toast("这条录音没找到，改用系统语音试试"); });
+    return;
+  }
   const sp = e.target.closest("[data-speak]");
   if (sp) { speak(decodeURIComponent(sp.dataset.speak)); return; }
   const pl = e.target.closest("[data-play]");
@@ -1235,9 +1346,27 @@ function fakeAn(dur, ratio, pauses) {
 }
 
 if (DEMO) {
-  const set = window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
+  const q = new URLSearchParams(location.search);
+  const wantNo = +q.get("set") || 2;
+  const set = window.BANK.sets.find(s => s.no === wantNo) || window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
   S.set = set;
-  if (new URLSearchParams(location.search).get("demo") === "exam") {
+  if (q.get("demo") === "talk") {
+    /* 只看表达题题面，用于检查表格 / 思维导图版式 */
+    show("exam");
+    $("#pSet").textContent = "第 " + set.no + " 套 · 表达题";
+    $("#pPart").textContent = "Ⅳ 表达";
+    const t = set.talk;
+    const pics = t.pictures && t.pictures.length
+      ? `<div class="pics">${t.pictures.map(p => `<img src="images/${p}" alt="">`).join("")}</div>` : "";
+    const body = t.visual ? visualHtml(t.visual)
+      : (t.prompt ? `<div class="big-sentence">${escHtml(t.prompt)}</div>` : "");
+    setStage("Ⅳ. 表达（口头作文）", `准备 ${t.prep} 秒 → 表达 ${t.answer} 秒，至少 5 句`,
+      `${body}${pics}
+       <div class="legend">建议结构：观点 1 句 → First / Second / What's more → 结尾 1 句。</div>`);
+    setState("考试中");
+    setStatus(`准备时间 · 还剩 <b>50</b> 秒`);
+    setRing(50, 50, false);
+  } else if (q.get("demo") === "exam") {
     /* 只渲染答题界面，用于版式检查 */
     show("exam");
     $("#pSet").textContent = "第 " + set.no + " 套 · " + set.title.replace(/^.*（(.*)）$/, "$1");
