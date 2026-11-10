@@ -109,6 +109,20 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
 .rec-row{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
 .chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:6px 0;color:var(--ink2)}
 .chk input{width:15px;height:15px}
+/* 交际应答逐题自评块 */
+.qitem{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:12px;background:#fff}
+.qitem .qhd{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink2);flex-wrap:wrap}
+.qitem .qhd .got{margin-left:auto;font-size:13px;font-weight:600;color:var(--brand)}
+.mini-tag{font-size:11.5px;padding:2px 8px;border-radius:999px;background:#f1f4f9;color:var(--ink3)}
+.qitem .ans{margin-top:8px;background:#f7faf8;border-color:#e2efe8}
+.tiers{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.tiers .tl{font-size:12px;color:var(--ink3)}
+.tiers label{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;color:var(--ink2)}
+.tiers label:hover{border-color:#c9d9ec}
+.tiers input{width:14px;height:14px;margin:0;flex:none}
+.tiers input:checked+span{color:var(--brand);font-weight:600}
+/* 未自评提示条 */
+.todo{background:#fff8ec;border:1px solid #f3e0bd;color:#8a5a12;border-radius:10px;padding:11px 14px;font-size:13px;line-height:1.75;margin-top:14px}
 .legend{font-size:12px;color:var(--ink3);margin-top:6px}
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
 .toast.on{opacity:.94}
@@ -229,6 +243,7 @@ canvas{width:100%;height:96px;display:block;background:#fbfcfe;border-radius:8px
   </div>
 
   <div class="dims" id="rDims"></div>
+  <div id="rTodo" class="todo" style="display:none"></div>
   <div id="rParts"></div>
 
   <div class="row" style="margin-top:18px">
@@ -463,6 +478,19 @@ function pitchStats(tr) {
   return { range: +(p(0.95) - p(0.05)).toFixed(1), med: +p(0.5).toFixed(1), ok: true, st };
 }
 
+/* 音节数粗估：语音区内数包络峰，间隔 < 85ms 的算同一个音节。
+   只用来判断「语速是否离谱」（乱念 / 哼唱 / 拖音），不当精确值用。 */
+function syllableEst(env, thr) {
+  const { db, hop } = env;
+  const pk = [];
+  for (let i = 1; i < db.length - 1; i++) {
+    if (db[i] > thr + 4 && db[i] >= db[i - 1] && db[i] > db[i + 1]) {
+      if (!pk.length || (i - pk[pk.length - 1]) * hop >= 0.085) pk.push(i);
+    }
+  }
+  return pk.length;
+}
+
 async function analyse(rec) {
   if (!rec || !rec.blob || rec.blob.size < 800) {
     return { ok: false, dur: 0, speech: 0, wpm: 0, pauses: 0, longest: 0, segs: [], env: null, pitch: null };
@@ -478,10 +506,28 @@ async function analyse(rec) {
   for (let i = 1; i < segs.length; i++) gaps.push(segs[i].t - (segs[i - 1].t + segs[i - 1].d));
   const longest = gaps.length ? Math.max(...gaps) : 0;
   const pauses = gaps.filter(g => g > 0.9).length;
+
+  /* 削波率：靠近满幅的样本占比。贴麦喊叫会明显升高，判爆音 */
+  let clipN = 0;
+  for (let i = 0; i < data.length; i++) if (Math.abs(data[i]) > 0.985) clipN++;
+  const clip = +(clipN / Math.max(1, data.length) * 100).toFixed(2);
+
+  /* 底噪：包络 10 分位 dB。太高说明环境吵，会影响机考录音质量 */
+  const dbs = Array.from(env.db).sort((a, b) => a - b);
+  const floor = Math.round(dbs[Math.floor(dbs.length * 0.10)] || -70);
+
+  /* 语音段阈值（与 segments 内部一致），供音节估计复用 */
+  const peakDb = dbs[Math.floor(dbs.length * 0.995)] || -20;
+  const thr = Math.max(floor + 9, peakDb - 38);
+  const syll = syllableEst(env, thr);
+  const syllRate = speech > 0.3 ? +(syll / speech).toFixed(1) : 0;
+  const longSeg = segs.reduce((a, s) => Math.max(a, s.d), 0);
+
   const tr = pitchTrack(data, sr);
   return {
     ok: true, dur: buf.duration, sr, speech, segs, env,
     pauses, longest: +longest.toFixed(2),
+    clip, floor, syll, syllRate, longSeg: +longSeg.toFixed(2),
     pitch: pitchStats(tr), pitchRaw: tr
   };
 }
@@ -825,7 +871,7 @@ async function recPhase(key, sec, icon, tip) {
 
 /* ---------- 主循环 ---------- */
 async function runExam(set) {
-  S.set = set; S.recs = {}; S.an = {}; S.checks = { retell: [], talk: [] }; S.cur = 0; S.aborted = false; S.running = true;
+  S.set = set; S.recs = {}; S.an = {}; S.checks = { retell: [], talk: [], quick: [] }; S.cur = 0; S.aborted = false; S.running = true;
   S.steps = buildSteps(set);
   show("exam");
   $("#btnNext").disabled = false;
@@ -864,7 +910,18 @@ async function runExam(set) {
 function canvasClean() { $("#sBody").innerHTML = ""; }
 
 /* =========================================================================
-   5. 评分（诊断型）
+   5. 评分
+   -------------------------------------------------------------------------
+   口径依据：上海市教育考试院《英语听说测试评分参考》
+     Ⅰ 朗读      3 个词组 × 0.5 + 2 个句子 × 0.5 = 2.5，每小项 0.5 / 0.25 / 0
+     Ⅱ 交际应答  5 题 × 0.5 = 2.5，每题 0.5（恰当应答）/ 0.25（能应答但不得体）/ 0
+     Ⅲ 复述      2.5 / 2 / 1.5 / 1 / 0.5 / 0 六档（"说出全部要点"才起 2.5）
+     Ⅳ 表达      2.5 / 2 / 1.5 / 1 / 0.5 / 0 六档（"内容完整充实"才起 2.5）
+   -------------------------------------------------------------------------
+   分工：
+     · 机器判「交付质量」——时长、语速、停顿、语调、断句、爆音、底噪；
+     · 内容（要点是否说全、应答是否切题）浏览器离线听不出来，由学生回听后自评；
+     · 自评默认不勾 = 不计分，杜绝"开个口就满分"。
    ========================================================================= */
 const norm = s => (s || "").toLowerCase().replace(/[^a-z0-9' ]/g, " ").split(/\s+/).filter(Boolean);
 
@@ -875,104 +932,225 @@ function wordsOf(set) {
   };
 }
 
-/* 朗读：2.5 分 */
-function scoreRead(an, expectWords, seconds) {
-  const issues = [];
-  let sc = 2.5;
-  if (!an || !an.ok || an.speech < 0.4) {
-    return { sc: 0, issues: [{ t: "没有检测到有效朗读", bad: true }], wpm: 0 };
-  }
-  const wpm = Math.round(expectWords / Math.max(0.6, an.speech) * 60);
-  const cover = an.speech / Math.max(1, Math.min(an.dur, seconds));
-  if (wpm < 70) { sc -= 0.55; issues.push({ t: `语速偏慢：约 ${wpm} 词/分（目标 100–150），读得太拖`, bad: true }); }
-  else if (wpm < 95) { sc -= 0.25; issues.push({ t: `语速略慢：约 ${wpm} 词/分，可再顺一点`, bad: true }); }
-  else if (wpm > 190) { sc -= 0.3; issues.push({ t: `语速偏快：约 ${wpm} 词/分，元音容易吞掉`, bad: true }); }
-  else issues.push({ t: `语速合适：约 ${wpm} 词/分`, bad: false });
-
-  if (an.pauses >= 4) { sc -= 0.4; issues.push({ t: `停顿 ${an.pauses} 次（最长 ${an.longest}s），流利度扣分重灾区`, bad: true }); }
-  else if (an.pauses >= 2) { sc -= 0.2; issues.push({ t: `停顿 ${an.pauses} 次，注意连读别断开`, bad: true }); }
-  else issues.push({ t: "几乎没有卡顿", bad: false });
-
-  if (an.pitch && an.pitch.ok) {
-    if (an.pitch.range < 2.5) { sc -= 0.3; issues.push({ t: `语调太平：音高起伏只有 ${an.pitch.range} 个半音，像念经`, bad: true }); }
-    else issues.push({ t: `语调有起伏（${an.pitch.range} 个半音）`, bad: false });
-  }
-  if (cover < 0.45) { sc -= 0.25; issues.push({ t: "有效发声时间偏短，可能有漏读/跳读", bad: true }); }
-  return { sc: clamp(+sc.toFixed(2), 0, 2.5), issues, wpm };
+/* 0–1 的连续质量压到 0.25 台阶（官方最小分档就是 0.25）。
+   向下取整：宁可少给，不让"差不多"混进上一档。 */
+function quantize(q, max, step = 0.25) {
+  const n = Math.round(max / step);
+  if (!n) return +(max * clamp(q, 0, 1)).toFixed(2);
+  const k = Math.floor(clamp(q, 0, 1) * n + 1e-6) / n;
+  return +(clamp(k * max, 0, max)).toFixed(2);
 }
 
-/* 交际应答：5 题 × 0.5 */
-function scoreQuick(set) {
+/* 官方六档 */
+const OPEN_TIERS = [0, 0.5, 1, 1.5, 2, 2.5];
+function tierOf(ratio) {
+  const steps = [1, 0.8, 0.6, 0.4, 0.2, 0];
+  const hit = steps.find(s => ratio >= s - 1e-6);
+  return hit == null ? 0 : +(2.5 * hit).toFixed(2);
+}
+function dropTier(v, n) {
+  const i = OPEN_TIERS.indexOf(v);
+  return OPEN_TIERS[i < 0 ? 0 : Math.max(0, i - n)];
+}
+
+/* —— 交付质量：机器唯一能判的部分 ——
+   返回 q ∈ [0,1]，以及可读的问题清单。q 越低，档位往下掉得越多。 */
+function delivery(an, opt = {}) {
+  const sec = opt.sec || 0, kind = opt.kind || "open";
+  const iss = [];
+  if (!an || !an.ok) return { q: 0, iss: [{ t: "这段没有录到声音", bad: true }] };
+  if (an.speech < 0.35) return { q: 0, iss: [{ t: "全程没有检测到有效发声", bad: true }] };
+  let q = 1;
+
+  if (an.floor > -38) iss.push({ t: `底噪偏高（${an.floor} dB），录音发闷，机评会吃亏`, bad: true });
+  if (an.clip > 0.8) { q *= 0.86; iss.push({ t: `有爆音（${an.clip}% 采样削顶），嘴别贴麦`, bad: true }); }
+
+  /* 1）内容量：有效发声占限时的比例 */
+  if (sec > 0) {
+    const cover = an.speech / sec;
+    if (cover < 0.2) { q *= 0.40; iss.push({ t: `只说了 ${an.speech.toFixed(1)} 秒（限时 ${sec} 秒），内容量差得远`, bad: true }); }
+    else if (cover < 0.35) { q *= 0.62; iss.push({ t: `只说了 ${an.speech.toFixed(1)} 秒（限时 ${sec} 秒），展开不够`, bad: true }); }
+    else if (cover < 0.5) { q *= 0.82; iss.push({ t: `有效表达 ${an.speech.toFixed(0)} 秒，还偏短`, bad: true }); }
+    else iss.push({ t: `有效表达 ${an.speech.toFixed(0)} 秒 / 限时 ${sec} 秒`, bad: false });
+  }
+  if (kind === "quick" && an.speech < 0.85) {
+    q *= 0.55; iss.push({ t: `只应了 ${an.speech.toFixed(1)} 秒，基本是单词级，官方要求完整应答`, bad: true });
+  }
+
+  /* 2）语速：用音节率判断「是否像人话」。英语正常语流 3.5–5.5 音节/秒 */
+  const r = an.syllRate || 0;
+  if (an.speech > 1.2 && r > 0) {
+    if (r > 7.4) { q *= 0.45; iss.push({ t: `语速失真：约 ${r} 音节/秒（正常 3.5–5.5），像硬念或含糊带过`, bad: true }); }
+    else if (r > 6.4) { q *= 0.76; iss.push({ t: `语速偏快：约 ${r} 音节/秒，容易吞音`, bad: true }); }
+    else if (r < 1.4) { q *= 0.50; iss.push({ t: `几乎没有成串语音：约 ${r} 音节/秒，像拖长音或哼声`, bad: true }); }
+    else if (r < 2.2) { q *= 0.78; iss.push({ t: `语速偏慢：约 ${r} 音节/秒`, bad: true }); }
+    else iss.push({ t: `语速正常：约 ${r} 音节/秒`, bad: false });
+  }
+
+  /* 3）一口气不断句：真实说话每句之间有换气，长时间无间隙通常是硬念 */
+  const lim = kind === "quick" ? 6 : 13;
+  if (an.longSeg > lim) {
+    q *= 0.60; iss.push({ t: `有一口气连说 ${an.longSeg} 秒没断句，听感像背串或含糊带过`, bad: true });
+  }
+
+  /* 4）卡顿 */
+  if (an.pauses >= 6) { q *= 0.60; iss.push({ t: `卡了 ${an.pauses} 次（最长 ${an.longest}s），流利度掉档`, bad: true }); }
+  else if (an.pauses >= 3) { q *= 0.85; iss.push({ t: `卡了 ${an.pauses} 次（最长 ${an.longest}s）`, bad: true }); }
+  else if (an.pauses > 0) iss.push({ t: "整体连贯", bad: false });
+
+  return { q: clamp(q, 0, 1), iss };
+}
+
+/* 复述要点：原书抽不出提示词时（第 6/7/11 套）用通用 5W1H 兜底 */
+const RETELL_FALLBACK = ["Who（主要人物）", "When / Where（时间、地点）", "What happened（发生了什么）", "How / Why（原因、经过）", "结果或感受"];
+function retellPoints(set) {
+  const p = (set.retell && set.retell.points) || [];
+  return p.length >= 3 ? p : RETELL_FALLBACK;
+}
+
+/* 朗读：Section 1 满分 1.5（3 × 0.5），Section 2 满分 1.0（2 × 0.5）
+   官方每小项只有 0.5 / 0.25 / 0，所以整体落在 0.25 台阶上 */
+function scoreRead(an, expectWords, seconds, max = 2.5) {
   const issues = [];
+  if (!an || !an.ok || an.speech < 0.4) {
+    return { sc: 0, issues: [{ t: "没有检测到有效朗读", bad: true }], wpm: 0, q: 0 };
+  }
+  const expSec = Math.max(1, expectWords / 2.2);           /* 132 词/分 → 读全所需秒数 */
+  /* 有的题限时本来就紧（如第 2 套 Section 2 两句 26 词 / 10 秒），
+     按「限时内最多能读完几成」折算，别拿读不完的题怪学生漏读 */
+  const cap = Math.min(1, (seconds * 0.95) / expSec);
+  const cover = an.speech / expSec;
+  const rel = cover / Math.max(0.35, cap);
+  const wpm = Math.round(expectWords / Math.max(0.6, an.speech) * 60);
+  let q = 1;
+
+  if (an.floor > -38) issues.push({ t: `底噪偏高（${an.floor} dB），机评会吃亏`, bad: true });
+  if (an.clip > 0.8) { q *= 0.88; issues.push({ t: `有爆音（${an.clip}% 削顶），嘴离麦太近了`, bad: true }); }
+
+  /* 读全了没有：漏读/跳读是朗读第一失分点 */
+  if (rel < 0.55) { q *= 0.45; issues.push({ t: `只读到限时内该读量的 ${Math.round(rel * 100)}%（有效发声 ${an.speech.toFixed(1)} 秒，本题约需 ${(expSec * cap).toFixed(1)} 秒），明显漏读`, bad: true }); }
+  else if (rel < 0.8) { q *= 0.72; issues.push({ t: `读得不完整（约 ${Math.round(rel * 100)}%），有漏读或跳词`, bad: true }); }
+  else if (cover <= 1.35) issues.push({ t: "朗读量完整", bad: false });
+  else { q *= 0.80; issues.push({ t: `读得太拖：用了 ${an.speech.toFixed(1)} 秒，正常约 ${expSec.toFixed(1)} 秒`, bad: true }); }
+
+  /* 语速只在"读全了"的前提下才有意义（漏读会让 wpm 虚高） */
+  if (rel >= 0.8) {
+    if (wpm < 80) { q *= 0.70; issues.push({ t: `语速偏慢：约 ${wpm} 词/分（目标 100–150），读得太拖`, bad: true }); }
+    else if (wpm < 100) { q *= 0.88; issues.push({ t: `语速略慢：约 ${wpm} 词/分，可以再顺一点`, bad: true }); }
+    else if (wpm > 200) { q *= 0.75; issues.push({ t: `语速过快：约 ${wpm} 词/分，元音会吞掉`, bad: true }); }
+    else if (wpm > 175) { q *= 0.90; issues.push({ t: `语速偏快：约 ${wpm} 词/分`, bad: true }); }
+    else issues.push({ t: `语速合适：约 ${wpm} 词/分`, bad: false });
+  }
+
+  /* 语调：官方对朗读明确要求"语调自然" */
+  if (an.pitch && an.pitch.ok) {
+    if (an.pitch.range < 2) { q *= 0.72; issues.push({ t: `语调太平：只有 ${an.pitch.range} 个半音起伏，像念经`, bad: true }); }
+    else if (an.pitch.range < 3) { q *= 0.88; issues.push({ t: `语调偏平：${an.pitch.range} 个半音，陈述句降调、一般疑问句升调要做出来`, bad: true }); }
+    else issues.push({ t: `语调有起伏（${an.pitch.range} 个半音）`, bad: false });
+  }
+
+  /* 停顿 / 回读 */
+  if (an.pauses >= 4) { q *= 0.68; issues.push({ t: `停顿 ${an.pauses} 次（最长 ${an.longest}s），可能有回读`, bad: true }); }
+  else if (an.pauses >= 2) { q *= 0.85; issues.push({ t: `停顿 ${an.pauses} 次，注意意群内别断`, bad: true }); }
+  else issues.push({ t: "几乎没有卡顿", bad: false });
+
+  return { sc: quantize(q, max), issues, wpm, q: clamp(q, 0, 1) };
+}
+
+/* 交际应答：5 题 × 0.5。机器判交付，学生判切题（默认不勾 = 0） */
+function scoreQuick(set) {
+  const issues = [], rows = [];
   let sc = 0;
   set.quick.items.forEach((it, i) => {
     const an = S.an["quick" + i];
-    let v = 0.5;
-    if (!an || !an.ok || an.speech < 0.25) {
-      v = 0; issues.push({ t: `第 ${i + 1} 题没有有效应答`, bad: true });
-    } else {
-      const d = an.speech;
-      if (d < 0.55) { v -= 0.35; issues.push({ t: `第 ${i + 1} 题只答了一两个词（${d.toFixed(1)}s），要用完整句`, bad: true }); }
-      else if (d > 8) { v -= 0.1; issues.push({ t: `第 ${i + 1} 题说太长（${d.toFixed(1)}s），机考按题限时`, bad: true }); }
-      if (an.longest > 1.4) { v -= 0.15; issues.push({ t: `第 ${i + 1} 题中间卡了 ${an.longest}s`, bad: true }); }
+    const d = delivery(an, { sec: set.quick.answer, kind: "quick" });
+    const raw = (S.checks.quick || [])[i];
+    const judged = raw === 0.5 || raw === 0.25 || raw === 0;
+    let get = 0, note = "";
+    if (!an || !an.ok || an.speech < 0.35) note = "没开口";
+    else if (!judged) note = "待自评（暂不计分）";
+    else if (d.q < 0.3) { get = 0; note = "交付不过关，判 0"; }
+    else if (d.q < 0.62) { get = Math.max(0, raw - 0.25); note = "切题但表达不合格，降一档"; }
+    else { get = raw; note = raw === 0.5 ? "达标" : raw === 0.25 ? "勉强" : "自己判没答上"; }
+    sc += get;
+    rows.push({ i, get: +get.toFixed(2), raw, judged, d, note });
+    if (!judged && an && an.ok && an.speech >= 0.35) {
+      issues.push({ t: `第 ${i + 1} 题还没对照参考答案打分`, bad: true });
     }
-    sc += clamp(v, 0, 0.5);
+    if (d.q > 0 && d.q < 0.62) {
+      const first = d.iss.find(x => x.bad);
+      if (first) issues.push({ t: `第 ${i + 1} 题：${first.t}`, bad: true });
+    }
   });
-  if (!issues.length) issues.push({ t: "五题都有完整应答", bad: false });
-  return { sc: +sc.toFixed(2), issues };
+  if (!issues.length) issues.push({ t: "五题都有完整应答且已自评", bad: false });
+  return { sc: +sc.toFixed(2), issues, rows };
 }
 
-/* 复述 / 表达：可测部分 1.8 分 + 自查内容 0.7 分 */
+/* 复述 / 表达：官方六档。内容档由自评要点定，交付质量决定降几档 */
 function scoreOpen(an, sec, kind, set) {
-  const issues = [];
-  const MAXM = 1.8, MAXC = 0.7;
-  let m = MAXM;
   if (!an || !an.ok || an.speech < 0.5) {
-    return { sc: 0, issues: [{ t: "没有检测到有效录音", bad: true }], sentenceCount: 0, measured: 0, content: 0 };
+    return { sc: 0, issues: [{ t: "没有检测到有效录音", bad: true }], sentenceCount: 0, q: 0, tier: 0, content: 0 };
   }
-  const cover = an.speech / sec;
-  if (cover < 0.25) { m -= 0.58; issues.push({ t: `只说了 ${an.speech.toFixed(0)} 秒（限时 ${sec} 秒），内容量明显不够`, bad: true }); }
-  else if (cover < 0.45) { m -= 0.32; issues.push({ t: `说了 ${an.speech.toFixed(0)} 秒，还能再撑满一点`, bad: true }); }
-  else issues.push({ t: `有效表达 ${an.speech.toFixed(0)} 秒`, bad: false });
+  const d = delivery(an, { sec, kind });
+  const issues = d.iss.slice();
+  const sentenceCount = Math.max(0, an.segs.filter(s => s.d > 0.35).length);
 
-  if (an.pauses >= 6) { m -= 0.32; issues.push({ t: `停顿 ${an.pauses} 次，思路断了；先列提纲再开口`, bad: true }); }
-  else if (an.pauses >= 3) { m -= 0.15; issues.push({ t: `停顿 ${an.pauses} 次（最长 ${an.longest}s）`, bad: true }); }
-  else issues.push({ t: "整体连贯", bad: false });
+  /* —— 内容档：来自学生自评 —— */
+  let items, checked, label;
+  if (kind === "retell") {
+    items = retellPoints(set).length;
+    checked = (S.checks.retell || []).slice(0, items).filter(Boolean).length;
+    label = "复述要点";
+  } else {
+    items = 3;
+    checked = (S.checks.talk || []).slice(0, items).filter(Boolean).length;
+    label = "表达结构";
+  }
+  const ratio = items ? checked / items : 0;
 
-  const sentenceCount = Math.max(1, an.segs.filter(s => s.d > 0.35).length);
+  /* 机器硬约束：只压「物理上不可能达标」的情况。
+     语音段数会被句中换气少的人低估，所以句数只提示不压档，避免误伤流畅的学生。 */
+  let cap = 1;
   if (kind === "talk") {
-    if (sentenceCount < 5) { m -= 0.29; issues.push({ t: `只说了约 ${sentenceCount} 句，要求至少 5 句`, bad: true }); }
-    else issues.push({ t: `约 ${sentenceCount} 句，句数达标`, bad: false });
+    if (an.speech < 12) { cap = 0.4; issues.push({ t: `只说了 ${an.speech.toFixed(0)} 秒，凑不出 5 句，内容量差得远`, bad: true }); }
+    else if (sentenceCount < 5) issues.push({ t: `语音段约 ${sentenceCount} 个（句子间停顿少会被并成一段），5 句的下限请自己核一下`, bad: false });
+    else issues.push({ t: `约 ${sentenceCount} 段，句数够`, bad: false });
+  } else {
+    if (sentenceCount < 3) { cap = 0.4; issues.push({ t: `只有约 ${sentenceCount} 个语音段，复述不成篇`, bad: true }); }
+    else issues.push({ t: `约 ${sentenceCount} 个语音段，成篇`, bad: false });
   }
-  if (an.pitch && an.pitch.ok && an.pitch.range < 2) {
-    m -= 0.11; issues.push({ t: "语调偏平淡", bad: true });
-  }
+  const eff = Math.min(ratio, cap);
+  const tier = tierOf(eff);
 
-  const items = kind === "retell" ? (set.retell.points || []).length : 4;
-  const checked = (S.checks[kind] || []).filter(Boolean).length;
-  let content = items ? MAXC * clamp(checked / items, 0, 1) : MAXC * 0.5;
-  if (items && checked < items) {
-    issues.push({ t: `内容要点自查：${checked} / ${items} 条说到`, bad: true });
-  }
-  return {
-    sc: clamp(+(clamp(m, 0, MAXM) + content).toFixed(2), 0, 2.5),
-    issues, sentenceCount, measured: clamp(m, 0, MAXM), content
-  };
+  if (checked >= items) issues.push({ t: `${label}：${checked} / ${items} 条，齐全`, bad: false });
+  else if (checked === 0) issues.push({ t: `${label}一条都没勾 —— 官方按"说不出要点"起评，这题内容分为 0`, bad: true });
+  else issues.push({ t: `${label}：${checked} / ${items} 条，还差 ${items - checked} 条`, bad: true });
+
+  /* —— 交付质量决定降档 —— */
+  let drop = 0;
+  if (d.q <= 0) drop = 5;
+  else if (d.q < 0.35) drop = 2;
+  else if (d.q < 0.62) drop = 1;
+  const final = drop ? dropTier(tier, drop) : tier;
+  if (drop) issues.push({ t: `交付质量没到位，档位下调 ${drop} 档（${tier} → ${final}）`, bad: true });
+
+  return { sc: final, issues, sentenceCount, q: d.q, tier, content: +(2.5 * ratio).toFixed(2) };
 }
 
 function scoreAll() {
   const set = S.set, w = wordsOf(set);
-  const readP = scoreRead(S.an["readPhrases"], w.phrases, set.read.phraseRead);
-  const readS = scoreRead(S.an["readSentences"], w.sentences, set.read.sentenceRead);
+  /* 官方分项：Section 1 三个词组共 1.5（各 0.5）；Section 2 两个句子共 1.0（各 0.5） */
+  const readP = scoreRead(S.an["readPhrases"], w.phrases, set.read.phraseRead, 1.5);
+  const readS = scoreRead(S.an["readSentences"], w.sentences, set.read.sentenceRead, 1.0);
   const quick = scoreQuick(set);
   const retell = scoreOpen(S.an["retell"], set.retell.answer, "retell", set);
   const talk = scoreOpen(S.an["talk"], set.talk.answer, "talk", set);
 
   const readDetail = {
-    sc: +(((readP.sc + readS.sc) / 2)).toFixed(2),
+    sc: +(readP.sc + readS.sc).toFixed(2),
     issues: [
-      ...readP.issues.map(i => ({ ...i, t: "Section 1 " + i.t })),
-      ...readS.issues.map(i => ({ ...i, t: "Section 2 " + i.t }))
+      ...readP.issues.map(i => ({ ...i, t: "Section 1 · " + i.t })),
+      ...readS.issues.map(i => ({ ...i, t: "Section 2 · " + i.t }))
     ]
   };
   const total = +(readDetail.sc + quick.sc + retell.sc + talk.sc).toFixed(1);
@@ -990,7 +1168,8 @@ function buildReport() {
   const lv = R.total >= 9 ? "接近满分，保持稳定" : R.total >= 8 ? "基本达标，扣分点很集中" :
     R.total >= 6.5 ? "中等水平，主要在流利度和内容量" : "需要从朗读和成句开始抓";
   $("#rDesc").innerHTML = `本次 <b>${set.title}</b> 诊断分 <b id="rTotal2">${R.total.toFixed(1)}</b> / 10（<span id="rLevel">${lv}</span>）。<br>
-    诊断分只反映「能测到的部分」：语速、停顿、时长、语调起伏、句数；语法与内容要点需要你自己听录音核对下部清单。
+    按上海市教育考试院公布的口径给分：朗读每小项 <b>0.5 / 0.25 / 0</b>，交际应答每题 <b>0.5 / 0.25 / 0</b>，复述与表达各分六档。
+    机器判「交付质量」（语速、停顿、时长、语调、句数、断句），<b>内容由你回听录音后自评</b> —— 不勾不计分，不是自动满分。
     <span style="color:var(--ink3)">官方机评不对外，任何工具都无法复刻，别把这里的分当预测分。</span>`;
 
   const dims = [
@@ -1016,6 +1195,7 @@ function buildReport() {
   show("report");
   window.scrollTo(0, 0);
   setTimeout(() => renderCanvases(document.getElementById("rParts")), 60);
+  refreshScores();
   if (AUTO) {
     document.title = "DONE score=" + R.total;
     try {
@@ -1082,28 +1262,53 @@ function partRead(set, R) {
 }
 
 function partQuick(set, R) {
+  const rows = (R.quick.rows || []);
+  const tierBtn = (i, v, label, raw) => `
+    <label><input type="radio" name="qk${i}" data-qt="${i}" value="${v}"${raw === v ? " checked" : ""}><span>${label}</span></label>`;
   const d = document.createElement("details");
   d.className = "part";
   d.innerHTML = `<summary><span class="t">Ⅱ. 交际应答（2.5 分）</span><span class="sc" data-sc="quick">${R.quick.sc.toFixed(1)}</span></summary>
     <div class="body">
       ${issuesHtml(R.quick.issues)}
-      ${set.quick.items.map((it, i) => recBlock("quick" + i, set.quick.answer, "第 " + (i + 1) + " 题")).join("")}
-      <div class="ans"><span class="k">参考答案（可接受说法，不是唯一答案）</span>
-        ${set.quick.items.map((it, i) => `
-          <div class="qa">
-            <div class="q"><b>${i + 1}.</b> ${it.q}</div>
-            <div class="a">${it.raw || it.answers.join(" / ")}</div>
-            <div style="margin-top:4px"><button class="btn ghost mini" data-audio="${audioUrl(set.no, "q" + (i + 1))}">▶ 听题目录音</button>
-            <button class="btn ghost mini" data-speak="${encodeURIComponent(it.answers[0] || "")}">▶ 听参考答案</button></div>
-          </div>`).join("")}
+      <div class="legend" style="margin:4px 0 10px">
+        机考按「应答是否恰当」给分，每题只有 <b>0.5 / 0.25 / 0</b> 三档。切不切题机器听不出来 ——
+        请回听自己的录音、对照下面的参考答案，逐题选一档。<b>不选 = 不计分</b>。
       </div>
-      <div class="legend">自查：每题是不是「先表态 + 再补一句」，避免只答 Yes / OK。</div>
+      ${set.quick.items.map((it, i) => {
+        const row = rows[i] || {};
+        const raw = row.raw;
+        return `<div class="qitem" data-qi="${i}">
+          <div class="qhd">
+            <b>第 ${i + 1} 题</b>
+            <span class="mini-tag">${row.note || ""}</span>
+            <span class="got">${(row.get || 0).toFixed(2)} / 0.5</span>
+          </div>
+          ${recBlock("quick" + i, 0, "")}
+          <div class="ans"><span class="k">题目与参考答案（可接受说法，不是唯一答案）</span>
+            <div class="q">${it.q}</div>
+            <div class="a">${it.raw || it.answers.join(" / ")}</div>
+            <div style="margin-top:6px">
+              <button class="btn ghost mini" data-audio="${audioUrl(set.no, "q" + (i + 1))}">▶ 听题目录音</button>
+              <button class="btn ghost mini" data-speak="${encodeURIComponent(it.answers[0] || "")}">▶ 听参考答案</button>
+            </div>
+          </div>
+          <div class="tiers">
+            <span class="tl">对照自评：</span>
+            ${tierBtn(i, 0.5, "答到点上 · 0.5", raw)}
+            ${tierBtn(i, 0.25, "能答但不得体 · 0.25", raw)}
+            ${tierBtn(i, 0, "没答上 / 答非所问 · 0", raw)}
+          </div>
+        </div>`;
+      }).join("")}
+      <div class="legend">自查：时态跟着问句走；问时间地点别丢介词；一般疑问句要 Yes, … / No, … 再接一句。</div>
     </div>`;
   return d;
 }
 
 function partRetell(set, R) {
-  const pts = set.retell.points;
+  const raw = set.retell.points || [];
+  const pts = retellPoints(set);
+  const fallback = raw.length < 3;
   const d = document.createElement("details");
   d.className = "part";
   d.innerHTML = `<summary><span class="t">Ⅲ. 复述（2.5 分）</span><span class="sc" data-sc="retell">${R.retell.sc.toFixed(1)}</span></summary>
@@ -1114,9 +1319,11 @@ function partRetell(set, R) {
         <div class="en">${set.retell.passage}</div>
         <div style="margin-top:8px"><button class="btn ghost mini" data-audio="${audioUrl(set.no, "retell")}">▶ 听原文录音</button></div>
       </div>
-      ${pts.length ? `<div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">要点自查（听自己的录音，逐条勾）</span>
+      <div class="ans" style="background:#fbfcfe;border-color:#e6ecf4">
+        <span class="k" style="color:var(--ink2)">要点自查（回听自己的录音，说到的才勾）${fallback ? " · 本题原书没给提示词，用 5W1H 通用要点" : ""}</span>
         ${pts.map((p, i) => `<label class="chk"><input type="checkbox" data-pt="retell:${i}"><span>${p}</span></label>`).join("")}
-      </div>` : ""}
+        <div class="legend" style="margin-top:6px">官方六档：全对 2.5 → 绝大部分 2 → 大部分 1.5 → 部分 1 → 个别 0.5 → 说不出 0。一条都不勾就是 0 分。</div>
+      </div>
       <div class="legend">自查：时态有没有前后跳（was/is 混用）？这是复述最常见的失分点。</div>
     </div>`;
   return d;
@@ -1140,18 +1347,32 @@ function partTalk(set, R) {
         <div class="en">${set.talk.sample}</div>
         <div style="margin-top:8px"><button class="btn ghost mini" data-speak="${encodeURIComponent(set.talk.sample)}">▶ 听范文</button></div>
       </div>
-      <div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">表达自查</span>
-        <label class="chk"><input type="checkbox" data-pt="talk:0"><span>开头有一句点题（I'd like to talk about…）</span></label>
+      <div class="ans" style="background:#fbfcfe;border-color:#e6ecf4"><span class="k" style="color:var(--ink2)">结构自查（回听录音后勾，说到的才勾）</span>
+        <label class="chk"><input type="checkbox" data-pt="talk:0"><span>开头有一句点题（I'd like to talk about… / The picture shows…）</span></label>
         <label class="chk"><input type="checkbox" data-pt="talk:1"><span>中间至少三个支撑句（First / Second / What's more）</span></label>
         <label class="chk"><input type="checkbox" data-pt="talk:2"><span>结尾有一句收束（That's why… / In a word…）</span></label>
-        <label class="chk"><input type="checkbox" data-pt="talk:3"><span>没有长时间卡壳、没有反复自我纠正</span></label>
+        <div class="legend" style="margin-top:6px">三条全勾 = 内容完整（2.5 档）；「至少 5 句」由机器按语音段数判，不够会自动压档。</div>
       </div>
-      <div class="legend">表达题只要「有话说 + 别停」，内容分就拿到了；语法错一两处不致命。</div>
+      <div class="legend">自查：宁可句子简单也别出错 —— 官方 2 分档只要求"语言结构和用词基本正确"。</div>
     </div>`;
   return d;
 }
 
-/* 勾选自查项后实时重算（内容分只由学生自己判，工具不替学生猜） */
+/* 自评后实时重算（内容分只由学生自己判，工具不替学生猜） */
+function todoCount() {
+  const set = S.set;
+  if (!set) return 0;
+  let n = 0;
+  set.quick.items.forEach((_, i) => {
+    const an = S.an["quick" + i], v = (S.checks.quick || [])[i];
+    if (an && an.ok && an.speech >= 0.35 && v !== 0.5 && v !== 0.25 && v !== 0) n++;
+  });
+  const rp = retellPoints(set).length;
+  if ((S.checks.retell || []).slice(0, rp).filter(Boolean).length < rp) n++;
+  if ((S.checks.talk || []).slice(0, 3).filter(Boolean).length < 3) n++;
+  return n;
+}
+
 function refreshScores() {
   const R = scoreAll();
   $("#rScore").textContent = R.total.toFixed(1);
@@ -1172,6 +1393,24 @@ function refreshScores() {
     const b = document.querySelector(`[data-bar="${k}"]`);
     if (b) b.style.width = (v / 2.5 * 100).toFixed(0) + "%";
   });
+  /* 交际应答逐题的得分与状态 */
+  (R.quick.rows || []).forEach(r => {
+    const box = document.querySelector(`.qitem[data-qi="${r.i}"]`);
+    if (!box) return;
+    const g = box.querySelector(".got"); if (g) g.textContent = r.get.toFixed(2) + " / 0.5";
+    const nt = box.querySelector(".mini-tag"); if (nt) nt.textContent = r.note;
+  });
+  /* 未自评提示 */
+  const td = $("#rTodo");
+  if (td) {
+    const n = todoCount();
+    td.style.display = n ? "block" : "none";
+    td.innerHTML = n
+      ? `还有 <b>${n}</b> 项内容自评没做（交际应答逐题打分 / 复述要点 / 表达结构）。
+         官方评分里内容占大头，没自评的部分一律按 0 计 —— 现在的总分偏低，不代表你的真实水平。
+         回听录音、对照参考答案把上面几处勾掉，分数会立刻重算。`
+      : "";
+  }
 }
 
 /* =========================================================================
@@ -1222,6 +1461,13 @@ $("#btnVoice").onclick = () => {
 $("#btnNext").onclick = () => { if (S.running) skipNow(); };
 
 document.addEventListener("change", e => {
+  const rd = e.target.closest("input[data-qt]");
+  if (rd) {
+    if (!S.checks.quick) S.checks.quick = [];
+    S.checks.quick[+rd.dataset.qt] = parseFloat(rd.value);
+    refreshScores();
+    return;
+  }
   const cb = e.target.closest("input[data-pt]");
   if (!cb) return;
   const [k, i] = cb.dataset.pt.split(":");
@@ -1264,49 +1510,79 @@ if (window.speechSynthesis) {
   setTimeout(loadVoices, 600);
 }
 
-/* ---- 单元测试模式：构造分析数据，断言评分落在预期区间 ---- */
+/* ---- 单元测试模式：构造分析数据，断言评分落在预期区间 ----
+   重点回归：说话 ≠ 得分。内容没自评 → 0；语速失真 / 一口气不断 → 掉档或判 0。 */
 const UNIT = new URLSearchParams(location.search).has("unittest");
 if (UNIT) {
   const set = window.BANK.sets.find(s => s.no === 2) || window.BANK.sets[0];
-  const mk = o => Object.assign({
-    ok: true, pauses: 0, longest: 0.6,
-    segs: Array.from({ length: o.segN || 3 }, (_, i) => ({ t: i * 1.1, d: 0.5 })),
-    pitch: { range: o.range == null ? 4.5 : o.range, ok: true },
-    env: { db: new Float32Array(40), hop: 0.02 }
-  }, o, { dur: o.dur || (o.speech / 0.8) });
+  const mk = o => {
+    const speech = o.speech == null ? 3 : o.speech;
+    const base = Object.assign({
+      ok: true, pauses: 0, longest: 0.4, clip: 0, floor: -62, longSeg: 2,
+      segs: Array.from({ length: o.segN || 3 }, (_, i) => ({ t: i * 1.1, d: 0.5 })),
+      pitch: { range: o.range == null ? 4.5 : o.range, ok: true },
+      env: { db: new Float32Array(40), hop: 0.02 }
+    }, o);
+    base.speech = speech;
+    base.syllRate = o.syllRate == null ? 4.2 : o.syllRate;
+    base.dur = o.dur || speech / 0.8;
+    return base;
+  };
   const res = [];
   const ck = (name, val, lo, hi) => res.push({ name, val: +(+val).toFixed(2), pass: val >= lo - 1e-6 && val <= hi + 1e-6, lo, hi });
 
-  const a1 = mk({ speech: 4.5, segN: 3 });
-  ck("朗读·正常（107词/分）", scoreRead(a1, 8, 15).sc, 2.2, 2.5);
-  const a2 = mk({ speech: 12.5, segN: 9, pauses: 5, longest: 1.6, range: 1.2 });
-  ck("朗读·拖沓+卡顿+平淡", scoreRead(a2, 22, 10).sc, 0.8, 1.8);
-  ck("朗读·没声音", scoreRead(mk({ speech: 0.2 }), 8, 15).sc, 0, 0.01);
-  const a3 = mk({ speech: 1.6, segN: 6 });
-  ck("朗读·语速过快", scoreRead(a3, 22, 10).sc, 1.4, 2.4);
+  /* —— Ⅰ 朗读：Section1 满分 1.5、Section2 满分 1.0，0.25 台阶 —— */
+  ck("朗读·8 词读 3.6 秒（读全、语速对）", scoreRead(mk({ speech: 3.6 }), 8, 15, 1.5).sc, 1.25, 1.5);
+  ck("朗读·只读了四成（漏读）", scoreRead(mk({ speech: 1.4, segN: 2 }), 8, 15, 1.5).sc, 0.4, 0.75);
+  ck("朗读·读了两倍时间（拖沓）", scoreRead(mk({ speech: 7.2 }), 8, 15, 1.5).sc, 0.4, 0.75);
+  ck("朗读·语调平板 + 3 次卡顿", scoreRead(mk({ speech: 3.6, range: 1.2, pauses: 3, longest: 1.2 }), 8, 15, 1.5).sc, 0.4, 1.0);
+  ck("朗读·没声音", scoreRead(mk({ speech: 0.2 }), 8, 15, 1.5).sc, 0, 0.01);
+  ck("朗读·Section2 五词读满（满分 1.0）", scoreRead(mk({ speech: 2.2 }), 5, 10, 1.0).sc, 0.75, 1.0);
+  ck("朗读·Section2 只蹦出两个字", scoreRead(mk({ speech: 0.6, segN: 1 }), 5, 10, 1.0).sc, 0, 0.25);
+  /* 第 2 套 Section 2 是两句 26 词 / 限时 10 秒：读满限时就算读全，不能怪学生漏读 */
+  ck("朗读·限时紧的长句（26 词 / 10 秒）读满", scoreRead(mk({ speech: 9.6 }), 26, 10, 1.0).sc, 0.9, 1.0);
 
-  S.an = {};
-  set.quick.items.forEach((it, i) => { S.an["quick" + i] = mk({ speech: 2.6, segN: 2 }); });
-  ck("应答·五题都完整", scoreQuick(set).sc, 2.3, 2.5);
-  S.an["quick1"] = mk({ speech: 0.3, segN: 1 });
-  S.an["quick3"] = mk({ speech: 2.4, segN: 2, longest: 1.9 });
-  ck("应答·两题有问题", scoreQuick(set).sc, 1.6, 2.05);
+  /* —— Ⅱ 交际应答：机器判交付，学生判切题 —— */
+  S.an = {}; S.checks = { quick: [], retell: [], talk: [] };
+  set.quick.items.forEach((_, i) => { S.an["quick" + i] = mk({ speech: 3.2, segN: 2 }); });
+  set.quick.items.forEach((_, i) => { S.checks.quick[i] = 0.5; });
+  ck("应答·五题切题 + 表达合格", scoreQuick(set).sc, 2.4, 2.5);
+
+  S.checks.quick = [0.5, 0.5, 0.5, undefined, undefined];
+  ck("应答·两题没自评 → 该题不计分", scoreQuick(set).sc, 1.4, 1.5);
+
+  S.checks.quick = [0.5, 0.5, 0.5, 0.5, 0.5];
+  S.an["quick0"] = mk({ speech: 0.5, segN: 1 });
+  ck("应答·一题只蹦一个词", scoreQuick(set).sc, 1.9, 2.0);
+  S.an["quick0"] = mk({ speech: 3.2, segN: 2 });
+
+  /* 乱答：语速失真 + 一口气 7.6 秒不断句，就算自评全勾也拿不到分 */
+  set.quick.items.forEach((_, i) => { S.an["quick" + i] = mk({ speech: 8, segN: 1, syllRate: 8.6, longSeg: 7.6 }); });
+  ck("应答·胡答一通（自评还勾满分）", scoreQuick(set).sc, 0, 0.6);
+
   S.an = {};
   ck("应答·全空", scoreQuick(set).sc, 0, 0.01);
 
-  S.checks = { retell: [], talk: [] };
-  const r5 = scoreOpen(mk({ speech: 40, segN: 12, pauses: 2 }), 50, "retell", set);
-  ck("复述·说满未勾要点", r5.sc, 1.5, 1.9);
-  S.checks.retell = (set.retell.points || []).map(() => true);
-  ck("复述·要点全勾", scoreOpen(mk({ speech: 40, segN: 12, pauses: 2 }), 50, "retell", set).sc, 2.3, 2.5);
-  S.checks.retell = (set.retell.points || []).map((_, i) => i < Math.ceil((set.retell.points.length || 1) / 2));
-  ck("复述·只说一半（要点勾一半）", scoreOpen(mk({ speech: 18, segN: 5, pauses: 4 }), 50, "retell", set).sc, 1.3, 1.9);
-  S.checks.retell = (set.retell.points || []).map(() => true);
+  /* —— Ⅲ 复述 —— */
+  S.checks = { quick: [], retell: [], talk: [] };
+  S.an = { retell: mk({ speech: 40, segN: 12, pauses: 1 }), talk: mk({ speech: 45, segN: 8, pauses: 1 }) };
+  const rp = retellPoints(set).length;
+  S.checks.retell = Array(rp).fill(true);
+  ck("复述·要点全说 + 撑满时间", scoreOpen(S.an.retell, 50, "retell", set).sc, 2.4, 2.5);
+  S.checks.retell = Array(rp).fill(false);
+  ck("复述·一条要点都没勾", scoreOpen(S.an.retell, 50, "retell", set).sc, 0, 0.01);
+  S.checks.retell = Array(rp).fill(true).map((_, i) => i < Math.ceil(rp / 2));
+  ck("复述·只说了一半要点", scoreOpen(S.an.retell, 50, "retell", set).sc, 1.0, 1.5);
+  S.checks.retell = Array(rp).fill(true);
   ck("复述·没说话", scoreOpen(mk({ speech: 0.1 }), 50, "retell", set).sc, 0, 0.01);
+  ck("复述·说满但卡了 7 次 → 降一档", scoreOpen(mk({ speech: 40, segN: 12, pauses: 7, longest: 1.8 }), 50, "retell", set).sc, 1.5, 2.0);
 
-  S.checks = { retell: [], talk: [1, 1, 1, 0] };
-  ck("表达·6句结构达标", scoreOpen(mk({ speech: 36, segN: 6, pauses: 1 }), 50, "talk", set).sc, 2.0, 2.5);
-  ck("表达·只3句", scoreOpen(mk({ speech: 14, segN: 3, pauses: 2 }), 50, "talk", set).sc, 1.0, 1.8);
+  /* —— Ⅳ 表达 —— */
+  S.checks.talk = [true, true, true];
+  ck("表达·结构全有 + 8 句", scoreOpen(S.an.talk, 50, "talk", set).sc, 2.4, 2.5);
+  ck("表达·结构全有但只说 11 秒（凑不出 5 句）", scoreOpen(mk({ speech: 11, segN: 3 }), 50, "talk", set).sc, 0.9, 1.2);
+  S.checks.talk = [true, false, false];
+  ck("表达·只勾了开头", scoreOpen(S.an.talk, 50, "talk", set).sc, 0, 1.0);
 
   const pass = res.filter(r => r.pass).length;
   document.body.innerHTML = "<pre style='padding:20px;font:13px monospace'>" +
@@ -1342,6 +1618,7 @@ function fakeAn(dur, ratio, pauses) {
   }
   return {
     ok: true, dur, speech, segs, pauses: pauses || 1, longest: 0.7,
+    clip: 0, floor: -62, syllRate: 4.2, longSeg: +(segLen * 0.82).toFixed(2),
     env: { db, hop, dur }, wpm: 120,
     pitch: { range: 4.6, med: 41, ok: true }, pitchRaw: { t: ts, hz }
   };
@@ -1381,14 +1658,23 @@ if (DEMO) {
     setRing(6.4, 10, true);
     $("#sMic").textContent = "麦克风已开启";
   } else {
+    S.checks = { quick: [], retell: [], talk: [] };
     S.an = {
-      readPhrases: fakeAn(set.read.phraseRead, 0.72, 0),
-      readSentences: fakeAn(set.read.sentenceRead, 0.66, 1),
+      readPhrases: fakeAn(set.read.phraseRead, 0.26, 0),
+      readSentences: fakeAn(set.read.sentenceRead, 0.28, 1),
       retell: fakeAn(set.retell.answer, 0.78, 3),
       talk: fakeAn(set.talk.answer, 0.7, 4)
     };
     set.quick.items.forEach((it, i) => { S.an["quick" + i] = fakeAn(4.2, 0.75, i === 4 ? 1 : 0); });
+    /* 演示态：把内容自评当成「学生已做完」，好让报告显示正常分数；?blank=1 留空看未自评提示 */
+    if (!q.get("blank")) {
+      set.quick.items.forEach((_, i) => { S.checks.quick[i] = 0.5; });
+      S.checks.retell = retellPoints(set).map(() => true);
+      S.checks.talk = [true, true, true];
+    }
     setTimeout(buildReport, 200);
+    /* 演示模式默认把四个板块摊开，方便看自评区 */
+    if (q.get("open")) setTimeout(() => { document.querySelectorAll("details.part").forEach(d => { d.open = true; }); }, 500);
   }
 }
 
